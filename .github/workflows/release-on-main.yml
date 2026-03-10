@@ -1,0 +1,71 @@
+name: Release On Main
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine next version tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          existing_tag="$(git tag --points-at "${GITHUB_SHA}" --list 'v*' | head -n 1 || true)"
+          if [[ -n "${existing_tag}" ]]; then
+            echo "tag_name=${existing_tag}" >> "${GITHUB_OUTPUT}"
+            echo "created=false" >> "${GITHUB_OUTPUT}"
+            echo "Current commit already has a version tag: ${existing_tag}"
+            exit 0
+          fi
+
+          latest_tag="$(git tag --list 'v*' --sort=-version:refname | head -n 1 || true)"
+          if [[ -z "${latest_tag}" ]]; then
+            latest_tag="v0.0.0"
+          fi
+
+          if [[ ! "${latest_tag}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "Unsupported tag format: ${latest_tag}"
+            exit 1
+          fi
+
+          major="${BASH_REMATCH[1]}"
+          minor="${BASH_REMATCH[2]}"
+          patch="${BASH_REMATCH[3]}"
+          next_patch=$((patch + 1))
+          next_tag="v${major}.${minor}.${next_patch}"
+
+          echo "tag_name=${next_tag}" >> "${GITHUB_OUTPUT}"
+          echo "created=true" >> "${GITHUB_OUTPUT}"
+          echo "Next version tag: ${next_tag}"
+
+      - name: Create and push tag
+        if: steps.version.outputs.created == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.version.outputs.tag_name }}"
+          git tag "${tag}" "${GITHUB_SHA}"
+          git push origin "${tag}"
+
+      - name: Publish release
+        if: steps.version.outputs.created == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag_name }}
+          generate_release_notes: true
