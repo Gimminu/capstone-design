@@ -1,5 +1,6 @@
 package com.example.youtubeparser
 
+import android.content.Context
 import android.util.Log
 import java.io.DataOutputStream
 import java.io.File
@@ -10,14 +11,14 @@ import java.util.UUID
 object ServerUploader {
 
     private const val TAG = "ServerUploader"
-    private const val SERVER_URL = "http://100.95.209.72:5000/upload_youtube_parser"
 
-    fun uploadJsonFile(file: File): Boolean {
+    fun uploadJsonFile(context: Context, file: File): Boolean {
         return try {
             val boundary = "Boundary-${UUID.randomUUID()}"
             val lineEnd = "\r\n"
+            val uploadUrl = UploadEndpointStore.resolveUploadUrl(context)
 
-            val connection = URL(SERVER_URL).openConnection() as HttpURLConnection
+            val connection = URL(uploadUrl).openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.doOutput = true
             connection.doInput = true
@@ -51,7 +52,7 @@ object ServerUploader {
                 connection.errorStream?.bufferedReader()?.readText().orEmpty()
             }
 
-            Log.d(TAG, "upload responseCode=$responseCode response=$responseText")
+            Log.d(TAG, "uploadUrl=$uploadUrl responseCode=$responseCode response=$responseText")
             responseCode in 200..299
         } catch (e: Exception) {
             Log.e(TAG, "upload failed", e)

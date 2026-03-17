@@ -61,7 +61,7 @@ docs/team-ownership.md    # 팀원별 작업 위치/역할
 
 **Step 3. 서버 IP 동기화 (Endpoint Configuration)**
 * 모바일 Tailscale 앱 목록에서, 목적지인 서버 PC에 할당된 **Tailscale 고유 IPv4 주소** (예: `100.x.x.x`)를 확인합니다.
-* `YouTubeParser` 앱을 실행한 뒤, 설정(Settings) 메뉴의 `Server IP` 란에 해당 IP 주소를 기입하고 저장합니다.
+* `YouTubeParser` 앱을 실행한 뒤, 첫 화면의 `서버 주소 저장` 입력란에 해당 IP 주소를 기입하고 저장합니다.
 * ssh first@IP 비밀번호 = first
 
 > **💡 Note for Reviewers:** > 이 방식을 통해 공용망에서의 데이터 탈취(Sniffing) 위험을 원천 차단하고, 백엔드 로컬 개발 환경과 모바일 클라이언트 간의 매끄러운 다이렉트 통신 파이프라인을 구축하였습니다.

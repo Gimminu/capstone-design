@@ -12,7 +12,11 @@ class YoutubeAccessibilityService : AccessibilityService() {
     companion object {
         private const val TAG = "YTParserService"
         private const val YOUTUBE_PACKAGE = "com.google.android.youtube"
+        private const val MIN_UPLOAD_INTERVAL_MS = 1200L
     }
+
+    private var lastSnapshotSignature: String? = null
+    private var lastUploadAt: Long = 0L
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -46,10 +50,15 @@ class YoutubeAccessibilityService : AccessibilityService() {
                     comments = comments
                 )
 
+                if (!shouldUpload(snapshot)) {
+                    Log.d(TAG, "skip duplicate snapshot upload")
+                    return
+                }
+
                 val savedFile = JsonFileStore.saveSnapshot(applicationContext, snapshot)
 
                 Thread {
-                    ServerUploader.uploadJsonFile(savedFile)
+                    ServerUploader.uploadJsonFile(applicationContext, savedFile)
                 }.start()
             }
         }
@@ -189,5 +198,26 @@ class YoutubeAccessibilityService : AccessibilityService() {
             className.contains("Button", ignoreCase = true) -> 3
             else -> 2
         }
+    }
+
+    private fun shouldUpload(snapshot: ParseSnapshot): Boolean {
+        if (snapshot.comments.isEmpty()) return false
+
+        val signature = snapshot.comments.joinToString("||") { comment ->
+            "${comment.commentText}|${comment.boundsInScreen.top}|${comment.boundsInScreen.left}"
+        }
+        val now = System.currentTimeMillis()
+
+        if (signature == lastSnapshotSignature) {
+            return false
+        }
+
+        if (now - lastUploadAt < MIN_UPLOAD_INTERVAL_MS) {
+            return false
+        }
+
+        lastSnapshotSignature = signature
+        lastUploadAt = now
+        return true
     }
 }
