@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ShieldText</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">SHIELDTEXT</p>
+          <h1>실시간 필터</h1>
+        </div>
+        <label class="power-switch" title="필터링 활성화">
+          <input id="enabledToggle" type="checkbox" />
+          <span></span>
+        </label>
+      </header>
+
+      <section class="panel runtime">
+        <h2>실동작 상태</h2>
+        <ul class="runtime-list">
+          <li><span>마지막 분석 시각</span><strong id="runtimeLastRun">-</strong></li>
+          <li><span>분석 노드 수</span><strong id="runtimeAnalyzed">0</strong></li>
+          <li><span>차단 노드 수</span><strong id="runtimeBlocked">0</strong></li>
+          <li><span>현재 페이지 hostname</span><strong id="runtimeHostname">-</strong></li>
+        </ul>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>민감도</h2>
+          <strong id="sensitivityLabel">60</strong>
+        </div>
+        <input id="sensitivityRange" type="range" min="0" max="100" step="5" />
+      </section>
+
+      <section class="panel">
+        <h2>카테고리</h2>
+        <div class="grid checks">
+          <label><input id="catAbuse" type="checkbox" />유해</label>
+          <label><input id="catHate" type="checkbox" />혐오</label>
+          <label><input id="catInsult" type="checkbox" />모욕</label>
+          <label><input id="catSpam" type="checkbox" />스팸</label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>개입 방식</h2>
+        <div class="mode-row">
+          <label><input type="radio" name="mode" value="mask" />마스킹</label>
+          <label><input type="radio" name="mode" value="hide" />숨김</label>
+        </div>
+      </section>
+
+      <section class="panel preview">
+        <h2>즉시 미리보기</h2>
+        <p id="previewLine" class="preview-line">
+          진짜 열받네 이건 완전 스팸이야 너는 왜 그렇게 말해
+        </p>
+      </section>
+
+      <footer class="actions">
+        <button id="applyNowButton" class="btn primary">현재 탭 즉시 분석</button>
+        <button id="openOptionsButton" class="btn ghost">상세 설정</button>
+      </footer>
+
+      <p id="statusMessage" class="status" aria-live="polite"></p>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

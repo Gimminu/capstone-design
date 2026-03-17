@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "ShieldText - Toxicity Filter",
+  "description": "웹 페이지 텍스트에서 유해/혐오/모욕/스팸 표현을 사용자 설정 기반으로 완화합니다.",
+  "version": "0.1.0",
+  "permissions": ["storage", "tabs", "activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_title": "ShieldText",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-script.js"],
+      "css": ["content-style.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html"
+}
