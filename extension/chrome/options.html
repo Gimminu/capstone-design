@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ShieldText Options</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <header class="title-wrap">
+        <p class="eyebrow">SHIELDTEXT</p>
+        <h1>상세 설정</h1>
+      </header>
+
+      <section class="card">
+        <h2>사용자 단어 설정</h2>
+        <label for="blockWords">추가 차단 단어 (쉼표 구분)</label>
+        <textarea id="blockWords" rows="3" placeholder="예: 나쁜말1, 나쁜말2"></textarea>
+
+        <label for="allowWords">예외 단어 (쉼표 구분)</label>
+        <textarea id="allowWords" rows="3" placeholder="예: 오탐단어1, 오탐단어2"></textarea>
+      </section>
+
+      <section class="card">
+        <h2>사이트 차단 설정</h2>
+        <label for="blockedDomains">차단 도메인 (쉼표 구분)</label>
+        <textarea id="blockedDomains" rows="2" placeholder="예: badsite.com, adult.example"></textarea>
+
+        <label for="warnDomains">경고 도메인 (쉼표 구분)</label>
+        <textarea id="warnDomains" rows="2" placeholder="예: risky.example"></textarea>
+      </section>
+
+      <section class="card inline">
+        <h2>표시 설정</h2>
+        <label class="line">
+          <input id="showReasonToggle" type="checkbox" />
+          왜 가려졌는지 한 줄 설명 표시
+        </label>
+      </section>
+
+      <section class="card stats">
+        <h2>세션 통계 (Mock)</h2>
+        <div class="stat-grid">
+          <article>
+            <p>총 차단</p>
+            <strong id="statBlocked">0</strong>
+          </article>
+          <article>
+            <p>오탐 신고</p>
+            <strong id="statFalsePositive">0</strong>
+          </article>
+          <article>
+            <p>평균 지연</p>
+            <strong id="statLatency">0ms</strong>
+          </article>
+        </div>
+      </section>
+
+      <section class="card json-preview">
+        <div class="json-header-row">
+          <h2>최근 JSON 미리보기</h2>
+          <button id="refreshJsonButton" class="btn ghost" type="button">새로고침</button>
+        </div>
+
+        <label for="payloadPreview">최근 payload 미리보기</label>
+        <textarea id="payloadPreview" rows="10" readonly></textarea>
+
+        <label for="decisionPreview">최근 decision 미리보기</label>
+        <textarea id="decisionPreview" rows="8" readonly></textarea>
+      </section>
+
+      <footer class="footer-actions">
+        <button id="runNowButton" class="btn ghost" type="button">현재 탭 즉시 분석</button>
+        <button id="saveOptionsButton" class="btn primary" type="button">설정 저장</button>
+      </footer>
+      <p id="optionsStatus" class="status" aria-live="polite"></p>
+    </main>
+
+    <script src="options.js"></script>
+  </body>
+</html>
