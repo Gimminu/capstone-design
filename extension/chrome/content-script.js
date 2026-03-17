@@ -95,10 +95,9 @@ function normalizeSensitivity(value) {
 }
 
 function getMinKeywordLengthBySensitivity(sensitivity) {
-  if (sensitivity >= 80) return 2;
-  if (sensitivity >= 60) return 3;
-  if (sensitivity >= 40) return 4;
-  return 5;
+  if (sensitivity >= 50) return 2;
+  if (sensitivity >= 20) return 3;
+  return 4;
 }
 
 function getRequiredHitCountBySensitivity(sensitivity) {

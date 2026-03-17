@@ -1,8 +1,6 @@
 const DEFAULT_SETTINGS = {
   customBlockWords: "",
   customAllowWords: "",
-  blockedDomains: "",
-  warnDomains: "",
   showReason: true,
   stats: {
     blockedCount: 0,
@@ -15,8 +13,6 @@ const DEFAULT_SETTINGS = {
 const els = {
   blockWords: document.getElementById("blockWords"),
   allowWords: document.getElementById("allowWords"),
-  blockedDomains: document.getElementById("blockedDomains"),
-  warnDomains: document.getElementById("warnDomains"),
   showReasonToggle: document.getElementById("showReasonToggle"),
   runNowButton: document.getElementById("runNowButton"),
   saveOptionsButton: document.getElementById("saveOptionsButton"),
@@ -37,8 +33,6 @@ function mergeSettings(stored) {
     ...stored,
     customBlockWords: stored?.customBlockWords ?? DEFAULT_SETTINGS.customBlockWords,
     customAllowWords: stored?.customAllowWords ?? DEFAULT_SETTINGS.customAllowWords,
-    blockedDomains: stored?.blockedDomains ?? DEFAULT_SETTINGS.blockedDomains,
-    warnDomains: stored?.warnDomains ?? DEFAULT_SETTINGS.warnDomains,
     showReason: stored?.showReason ?? DEFAULT_SETTINGS.showReason,
     stats: {
       ...DEFAULT_SETTINGS.stats,
@@ -127,8 +121,6 @@ function readSettingsFromForm() {
     ...currentSettings,
     customBlockWords: els.blockWords.value.trim(),
     customAllowWords: els.allowWords.value.trim(),
-    blockedDomains: els.blockedDomains.value.trim(),
-    warnDomains: els.warnDomains.value.trim(),
     showReason: els.showReasonToggle.checked
   };
 }
@@ -136,8 +128,6 @@ function readSettingsFromForm() {
 function renderSettingsToForm(settings) {
   els.blockWords.value = settings.customBlockWords;
   els.allowWords.value = settings.customAllowWords;
-  els.blockedDomains.value = settings.blockedDomains;
-  els.warnDomains.value = settings.warnDomains;
   els.showReasonToggle.checked = settings.showReason;
 }
 
