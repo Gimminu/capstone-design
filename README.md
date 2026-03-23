@@ -20,11 +20,13 @@ scripts/                  보조 스크립트
 
 ## Android 위치 정리
 
-유튜브 댓글 수집용 접근성 서비스는 별도 `tools/` 프로젝트가 아니라 Android 메인 앱 안에서 관리합니다.
+댓글 수집용 접근성 서비스는 별도 `tools/` 프로젝트가 아니라 Android 메인 앱 안에서 관리합니다.
 
 - 앱 진입점: `android/app/src/main/java/com/capstone/design/MainActivity.kt`
 - 접근성 수집 서비스: `android/app/src/main/java/com/capstone/design/youtubeparser/YoutubeAccessibilityService.kt`
-- 댓글 추출 로직: `android/app/src/main/java/com/capstone/design/youtubeparser/YoutubeCommentExtractor.kt`
+- YouTube 추출 로직: `android/app/src/main/java/com/capstone/design/youtubeparser/YoutubeCommentExtractor.kt`
+- Instagram 추출 로직: `android/app/src/main/java/com/capstone/design/youtubeparser/InstagramCommentExtractor.kt`
+- TikTok 추출 로직: `android/app/src/main/java/com/capstone/design/youtubeparser/TiktokCommentExtractor.kt`
 - 업로드 주소 저장: `android/app/src/main/java/com/capstone/design/youtubeparser/UploadEndpointStore.kt`
 - 접근성 서비스 설정: `android/app/src/main/res/xml/accessibility_service_config.xml`
 
@@ -35,7 +37,7 @@ scripts/                  보조 스크립트
 1. Android Studio에서 `android/`를 엽니다.
 2. 앱을 설치한 뒤 첫 화면에서 업로드 서버 주소를 저장합니다.
 3. `접근성 설정 열기` 버튼으로 접근성 권한을 켭니다.
-4. 유튜브 앱에서 댓글 화면을 열면 수집 로직이 동작합니다.
+4. YouTube, Instagram, TikTok 앱에서 댓글 화면을 열면 수집 로직이 동작합니다.
 
 기본 업로드 주소는 Tailscale 기반 로컬 서버를 가정하며, 앱 첫 화면에서 변경할 수 있습니다.
 
@@ -50,4 +52,4 @@ scripts/                  보조 스크립트
 
 - `docs/github-collaboration-guide.md`
 - `docs/team-ownership.md`
-- `shared/contracts/web-text-payload-v1.md`
+- `shared/contracts/README.md`

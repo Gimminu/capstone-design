@@ -1,14 +1,14 @@
 <resources>
     <string name="app_name">ShieldText Android</string>
-    <string name="accessibility_service_label">ShieldText YouTube Parser</string>
-    <string name="accessibility_service_description">Parses YouTube comment text and bounds.</string>
+    <string name="accessibility_service_label">ShieldText Comment Parser</string>
+    <string name="accessibility_service_description">Parses comment text and bounds from YouTube, Instagram, and TikTok.</string>
     <string name="android_home_title">Android Capture Console</string>
-    <string name="android_home_description">YouTube 화면 텍스트를 수집하고 업로드 서버 주소를 관리합니다.</string>
+    <string name="android_home_description">YouTube, Instagram, TikTok 댓글 텍스트를 수집하고 업로드 서버 주소를 관리합니다.</string>
     <string name="server_endpoint_label">업로드 서버 주소</string>
     <string name="server_endpoint_hint">예: 100.95.209.72</string>
     <string name="save_server_endpoint">서버 주소 저장</string>
     <string name="open_accessibility_settings">접근성 설정 열기</string>
     <string name="saved_server_endpoint">저장된 업로드 주소: %1$s</string>
-    <string name="youtube_only_note">현재 파서는 YouTube 앱 댓글 영역만 대상으로 동작합니다.</string>
+    <string name="youtube_only_note">현재 파서는 YouTube, Instagram, TikTok 앱 댓글 영역을 대상으로 동작합니다.</string>
     <string name="server_endpoint_saved">서버 주소 저장 완료</string>
 </resources>
