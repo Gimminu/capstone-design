@@ -1,0 +1,140 @@
+{
+  "comments": [
+    {
+      "boundsInScreen": {
+        "bottom": 700,
+        "left": 88,
+        "right": 293,
+        "top": 382
+      },
+      "commentText": "지퍼7"
+    },
+    {
+      "boundsInScreen": {
+        "bottom": 700,
+        "left": 293,
+        "right": 498,
+        "top": 382
+      },
+      "commentText": "PingScan"
+    },
+    {
+      "boundsInScreen": {
+        "bottom": 700,
+        "left": 498,
+        "right": 703,
+        "top": 382
+      },
+      "commentText": "ChatGPT"
+    },
+    {
+      "boundsInScreen": {
+        "bottom": 700,
+        "left": 703,
+        "right": 908,
+        "top": 382
+      },
+      "commentText": "쿠팡"
+    },
+    {
+      "boundsInScreen": {
+        "bottom": 700,
+        "left": 908,
+        "right": 1112,
+        "top": 382
+      },
+      "commentText": "오늘의집"
+    },
+    {
+      "boundsInScreen": {
+        "bottom": 1018,
+        "left": 88,
+        "right": 293,
+        "top": 700
+      },
+      "commentText": "Gemini"
+    },
+    {
+      "boundsInScreen": {
+        "bottom": 1018,
+        "left": 498,
+        "right": 703,
+        "top": 700
+      },
+      "commentText": "TVING"
+    },
+    {
+      "boundsInScreen": {
+        "bottom": 1018,
+        "left": 703,
+        "right": 908,
+        "top": 700
+      },
+      "commentText": "YouTubeParser"
+    },
+    {
+      "boundsInScreen": {
+        "bottom": 1018,
+        "left": 908,
+        "right": 1112,
+        "top": 700
+      },
+      "commentText": "Instagram"
+    },
+    {
+      "boundsInScreen": {
+        "bottom": 1336,
+        "left": 88,
+        "right": 293,
+        "top": 1018
+      },
+      "commentText": "TikTok"
+    },
+    {
+      "boundsInScreen": {
+        "bottom": 1830,
+        "left": 88,
+        "right": 293,
+        "top": 1706
+      },
+      "commentText": "카메라"
+    },
+    {
+      "boundsInScreen": {
+        "bottom": 1830,
+        "left": 293,
+        "right": 498,
+        "top": 1706
+      },
+      "commentText": "어시스턴트"
+    },
+    {
+      "boundsInScreen": {
+        "bottom": 1830,
+        "left": 498,
+        "right": 703,
+        "top": 1706
+      },
+      "commentText": "설정"
+    },
+    {
+      "boundsInScreen": {
+        "bottom": 1830,
+        "left": 703,
+        "right": 908,
+        "top": 1706
+      },
+      "commentText": "YouTube"
+    },
+    {
+      "boundsInScreen": {
+        "bottom": 1830,
+        "left": 908,
+        "right": 1112,
+        "top": 1706
+      },
+      "commentText": "Chrome"
+    }
+  ],
+  "timestamp": 1774168097862
+}

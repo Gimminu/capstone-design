@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.env
+*.safetensors
+진행단계.txt
