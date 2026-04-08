@@ -3,7 +3,10 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(__file__))
+BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+TRAINING_DIR = os.path.join(BASE, "training")
+if TRAINING_DIR not in sys.path:
+    sys.path.insert(0, TRAINING_DIR)
 
 import torch
 from torch.utils.data import DataLoader
@@ -12,7 +15,6 @@ from train_span import (
     NUM_LABELS, LABEL2ID, ID2LABEL,
 )
 
-BASE = os.path.join(os.path.dirname(__file__), "..")
 MODEL_DIR = os.path.join(BASE, "models", "span_large_combined_crf")
 DATA_DIR = os.path.join(BASE, "data", "train")
 

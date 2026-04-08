@@ -75,6 +75,10 @@ class ProfanityPipeline:
                 if idx >= 0:
                     s["start"] = idx
                     s["end"] = idx + len(s["text"])
+                else:
+                    # 원문에서 직접 매칭되지 않으면 좌표를 신뢰할 수 없으므로 sentinel 처리
+                    s["start"] = -1
+                    s["end"] = -1
             evidence_spans = raw_spans
 
         return {
