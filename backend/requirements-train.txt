@@ -1,0 +1,6 @@
+# ── 학습/전처리 전용 ────────────────────────────────────
+-r requirements.txt
+datasets
+pandas
+scikit-learn
+huggingface_hub

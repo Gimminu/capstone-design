@@ -1,7 +1,27 @@
+# ── 모델 weights ──────────────────────────────────────
+*.safetensors
+*.pt
+*.bin
+models/*/checkpoints/
+
+# config/tokenizer 파일은 유지
+!models/*/config.json
+!models/*/model_config.json
+!models/*/tokenizer*.json
+!models/*/special_tokens_map.json
+!models/*/sentencepiece.bpe.model
+
+# ── Python ────────────────────────────────────────────
 __pycache__/
 *.pyc
 *.pyo
 venv/
-.env
-*.safetensors
-진행단계.txt
+.venv/
+
+# ── 로그 ──────────────────────────────────────────────
+*.log
+
+# ── 데이터 ────────────────────────────────────────────
+data/
+*.csv
+*.jsonl
