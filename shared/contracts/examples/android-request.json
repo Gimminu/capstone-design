@@ -1,0 +1,23 @@
+{
+  "timestamp": 1712500000,
+  "comments": [
+    {
+      "commentText": "좋은 영상이네요",
+      "boundsInScreen": {
+        "top": 100,
+        "bottom": 200,
+        "left": 0,
+        "right": 1080
+      }
+    },
+    {
+      "commentText": "진짜 못생겼다 ㅋㅋ",
+      "boundsInScreen": {
+        "top": 200,
+        "bottom": 300,
+        "left": 0,
+        "right": 1080
+      }
+    }
+  ]
+}

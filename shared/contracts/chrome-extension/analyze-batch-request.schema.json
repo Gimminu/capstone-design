@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "chrome-extension/analyze-batch-request.schema.json",
+  "title": "AnalyzeBatchRequest",
+  "description": "배치 분석 요청 (Chrome Extension)",
+  "type": "object",
+  "properties": {
+    "texts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "maxItems": 100,
+      "description": "분석할 텍스트 목록 (최대 100개)"
+    }
+  },
+  "required": ["texts"],
+  "additionalProperties": false
+}

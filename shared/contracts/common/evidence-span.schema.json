@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "common/evidence-span.schema.json",
+  "title": "EvidenceSpan",
+  "description": "욕설/유해 표현의 위치 정보",
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "description": "추출된 욕설 텍스트"
+    },
+    "start": {
+      "type": "integer",
+      "minimum": -1,
+      "description": "시작 인덱스 (-1 = 위치 불명)"
+    },
+    "end": {
+      "type": "integer",
+      "minimum": -1,
+      "description": "끝 인덱스 (-1 = 위치 불명)"
+    },
+    "score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "span 신뢰도"
+    }
+  },
+  "required": ["text", "start", "end", "score"],
+  "additionalProperties": false
+}

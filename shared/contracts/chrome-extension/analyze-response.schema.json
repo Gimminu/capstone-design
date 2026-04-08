@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "chrome-extension/analyze-response.schema.json",
+  "title": "AnalyzeResponse",
+  "description": "단일 텍스트 분석 응답",
+  "type": "object",
+  "properties": {
+    "original": {
+      "type": "string",
+      "description": "원본 텍스트"
+    },
+    "is_offensive": {
+      "type": "boolean",
+      "description": "유해 여부 (최종 판정)"
+    },
+    "is_profane": {
+      "type": "boolean",
+      "description": "욕설 여부"
+    },
+    "is_toxic": {
+      "type": "boolean",
+      "description": "독성 여부"
+    },
+    "is_hate": {
+      "type": "boolean",
+      "description": "혐오 표현 여부"
+    },
+    "scores": {
+      "$ref": "../common/scores.schema.json"
+    },
+    "evidence_spans": {
+      "type": "array",
+      "items": {
+        "$ref": "../common/evidence-span.schema.json"
+      },
+      "description": "욕설 위치 목록 (마스킹 근거)"
+    }
+  },
+  "required": [
+    "original",
+    "is_offensive",
+    "is_profane",
+    "is_toxic",
+    "is_hate",
+    "scores",
+    "evidence_spans"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "android/android-response.schema.json",
+  "title": "AndroidResponse",
+  "description": "Android 접근성 서비스 분석 응답",
+  "type": "object",
+  "properties": {
+    "timestamp": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "요청과 동일한 Unix timestamp"
+    },
+    "filtered_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "필터링(전처리 제거)된 댓글 수"
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "original": {
+            "type": "string",
+            "description": "원본 댓글 텍스트"
+          },
+          "boundsInScreen": {
+            "$ref": "bounds-in-screen.schema.json"
+          },
+          "is_offensive": {
+            "type": "boolean"
+          },
+          "is_profane": {
+            "type": "boolean"
+          },
+          "is_toxic": {
+            "type": "boolean"
+          },
+          "is_hate": {
+            "type": "boolean"
+          },
+          "scores": {
+            "$ref": "../common/scores.schema.json"
+          },
+          "evidence_spans": {
+            "type": "array",
+            "items": {
+              "$ref": "../common/evidence-span.schema.json"
+            }
+          }
+        },
+        "required": [
+          "original",
+          "boundsInScreen",
+          "is_offensive",
+          "is_profane",
+          "is_toxic",
+          "is_hate",
+          "scores",
+          "evidence_spans"
+        ],
+        "additionalProperties": false
+      },
+      "description": "분석 결과 배열"
+    }
+  },
+  "required": ["timestamp", "filtered_count", "results"],
+  "additionalProperties": false
+}

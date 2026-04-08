@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "chrome-extension/analyze-batch-response.schema.json",
+  "title": "AnalyzeBatchResponse",
+  "description": "배치 분석 응답",
+  "type": "object",
+  "properties": {
+    "results": {
+      "type": "array",
+      "items": {
+        "$ref": "analyze-response.schema.json"
+      },
+      "description": "분석 결과 배열"
+    }
+  },
+  "required": ["results"],
+  "additionalProperties": false
+}

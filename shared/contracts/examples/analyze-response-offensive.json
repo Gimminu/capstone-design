@@ -1,0 +1,26 @@
+{
+  "original": "이 영상 진짜 쓰레기같다 ㅅㅂ",
+  "is_offensive": true,
+  "is_profane": true,
+  "is_toxic": true,
+  "is_hate": false,
+  "scores": {
+    "profanity": 0.95,
+    "toxicity": 0.88,
+    "hate": 0.12
+  },
+  "evidence_spans": [
+    {
+      "text": "쓰레기같다",
+      "start": 8,
+      "end": 13,
+      "score": 0.82
+    },
+    {
+      "text": "ㅅㅂ",
+      "start": 14,
+      "end": 16,
+      "score": 0.97
+    }
+  ]
+}

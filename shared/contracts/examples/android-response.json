@@ -1,0 +1,51 @@
+{
+  "timestamp": 1712500000,
+  "filtered_count": 0,
+  "results": [
+    {
+      "original": "좋은 영상이네요",
+      "boundsInScreen": {
+        "top": 100,
+        "bottom": 200,
+        "left": 0,
+        "right": 1080
+      },
+      "is_offensive": false,
+      "is_profane": false,
+      "is_toxic": false,
+      "is_hate": false,
+      "scores": {
+        "profanity": 0.01,
+        "toxicity": 0.02,
+        "hate": 0.01
+      },
+      "evidence_spans": []
+    },
+    {
+      "original": "진짜 못생겼다 ㅋㅋ",
+      "boundsInScreen": {
+        "top": 200,
+        "bottom": 300,
+        "left": 0,
+        "right": 1080
+      },
+      "is_offensive": true,
+      "is_profane": false,
+      "is_toxic": true,
+      "is_hate": false,
+      "scores": {
+        "profanity": 0.15,
+        "toxicity": 0.78,
+        "hate": 0.22
+      },
+      "evidence_spans": [
+        {
+          "text": "못생겼다",
+          "start": 3,
+          "end": 7,
+          "score": 0.71
+        }
+      ]
+    }
+  ]
+}

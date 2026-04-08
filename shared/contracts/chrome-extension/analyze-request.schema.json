@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "chrome-extension/analyze-request.schema.json",
+  "title": "AnalyzeRequest",
+  "description": "단일 텍스트 분석 요청 (Chrome Extension)",
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "description": "분석할 텍스트"
+    }
+  },
+  "required": ["text"],
+  "additionalProperties": false
+}
