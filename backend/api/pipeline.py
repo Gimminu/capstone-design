@@ -11,11 +11,43 @@
   Android App      → analyze_android_batch()           JSON + boundsInScreen 입력/출력
 """
 import os
+from difflib import SequenceMatcher
 
 from normalizer import normalize
 from classifier import TextClassifier
 from span_detector import SpanDetector
 from input_filter import filter_android_json
+
+
+def _build_norm_to_orig_map(original: str, normalized: str) -> list[int]:
+    """정규화 텍스트의 각 문자 인덱스 → 원문 인덱스 매핑 배열 생성.
+
+    difflib.SequenceMatcher로 두 문자열을 정렬하여
+    normalized[i]가 original의 어느 위치에서 왔는지 추적한다.
+    """
+    sm = SequenceMatcher(None, original, normalized, autojunk=False)
+    n2o = [-1] * len(normalized)
+
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            for k in range(j2 - j1):
+                n2o[j1 + k] = i1 + k
+        elif tag == "replace":
+            # 길이가 다를 수 있으므로 비례 배분
+            orig_len = i2 - i1
+            norm_len = j2 - j1
+            for k in range(norm_len):
+                n2o[j1 + k] = i1 + min(k * orig_len // norm_len, orig_len - 1)
+
+    # -1 갭을 직전 유효 인덱스로 채움
+    last = 0
+    for i in range(len(n2o)):
+        if n2o[i] >= 0:
+            last = n2o[i]
+        else:
+            n2o[i] = last
+
+    return n2o
 
 # 모델 경로: 환경변수 > 기본값(backend/ 기준)
 BASE = os.environ.get("MODEL_BASE", os.path.join(os.path.dirname(__file__), ".."))
@@ -69,17 +101,20 @@ class ProfanityPipeline:
         evidence_spans = []
         if is_offensive:
             raw_spans = self.span_detector.detect(normalized)
-            # 정규화 텍스트 → 원문 위치 매핑
+
+            # 정규화↔원문 인덱스 매핑 (정규화로 좌표가 틀어지는 문제 해결)
+            n2o = _build_norm_to_orig_map(text, normalized)
+
             for s in raw_spans:
-                idx = text.find(s["text"])
-                if idx >= 0:
-                    s["start"] = idx
-                    s["end"] = idx + len(s["text"])
+                ns, ne = s["start"], s["end"]
+                if 0 <= ns < len(n2o) and 0 < ne <= len(n2o):
+                    s["start"] = n2o[ns]
+                    s["end"] = n2o[ne - 1] + 1
+                    s["text"] = text[s["start"]:s["end"]]
                 else:
-                    # 원문에서 직접 매칭되지 않으면 좌표를 신뢰할 수 없으므로 sentinel 처리
                     s["start"] = -1
                     s["end"] = -1
-            evidence_spans = raw_spans
+                evidence_spans.append(s)
 
         return {
             "text": text,
