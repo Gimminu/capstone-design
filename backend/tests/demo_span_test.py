@@ -1,16 +1,15 @@
 """문장 분류 + Span 추출 비대화형 테스트 (새 파이프라인)"""
 
-import os
-import sys
+import os, sys
 
-BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-API_DIR = os.path.join(BASE, "api")
-if API_DIR not in sys.path:
-    sys.path.insert(0, API_DIR)
+_HERE = os.path.abspath(os.path.dirname(__file__))
+_BACKEND = os.path.join(_HERE, "..")
+sys.path.insert(0, os.path.join(_BACKEND, "api"))
 
 from pipeline import ProfanityPipeline
 
-CLF_MODEL_DIR = os.path.join(BASE, "models", "v2")
+BASE = _BACKEND
+CLF_MODEL_DIR  = os.path.join(BASE, "models", "v2")
 SPAN_MODEL_DIR = os.path.join(BASE, "models", "span_large_combined_crf")
 
 

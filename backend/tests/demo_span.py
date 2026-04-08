@@ -1,21 +1,18 @@
 """문장 분류 + Span 추출 통합 데모"""
 
-import os
-import sys
+import os, sys, torch
 
-BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-API_DIR = os.path.join(BASE, "api")
-TRAINING_DIR = os.path.join(BASE, "training")
-for path in (API_DIR, TRAINING_DIR):
-    if path not in sys.path:
-        sys.path.insert(0, path)
+_HERE = os.path.abspath(os.path.dirname(__file__))
+_BACKEND = os.path.join(_HERE, "..")
+sys.path.insert(0, os.path.join(_BACKEND, "api"))
+sys.path.insert(0, os.path.join(_BACKEND, "training"))
 
-import torch
 from transformers import AutoTokenizer
 from train_span import SpanCRFModel, NUM_LABELS, ID2LABEL
 from classifier import TextClassifier
 from normalizer import normalize
 
+BASE = _BACKEND
 SPAN_MODEL_DIR = os.path.join(BASE, "models", "span_large_combined_crf")
 CLF_MODEL_DIR = os.path.join(BASE, "models", "v2")
 
