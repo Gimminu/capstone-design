@@ -85,6 +85,7 @@ const MAX_CANDIDATES = 120;
 const MAX_FOREGROUND_CONTAINERS = 5;
 const MAX_BACKGROUND_CONTAINERS = 14;
 const VIEWPORT_BUFFER_PX = 720;
+const SCROLL_REFRESH_TEXT_NODE_LIMIT = 72;
 const MAX_ANALYSIS_CONTEXT_LENGTH = 360;
 const MAX_RECONCILE_CONTEXT_LENGTH = 560;
 const MIN_ANALYSIS_CONTEXT_LENGTH = 24;
@@ -189,6 +190,7 @@ let pendingImmediateInputElement = null;
 let immediateInputTimerId = null;
 let overlaySyncFrameId = null;
 let pendingEditableOverlaySyncFrames = 0;
+let scrollVisibilityRefreshFrameId = null;
 let reconcileFlushTimerId = null;
 let scheduledReconcileDelayMs = 0;
 let isReconcileRunning = false;
@@ -4450,6 +4452,46 @@ function scheduleStartupFollowupPipelines() {
   }
 }
 
+function refreshVisibleCandidateRegistrations() {
+  let registeredCount = 0;
+
+  if (isGoogleSearchPage()) {
+    const containers = getGoogleVisibleAnalysisContainers(MAX_HOT_PATH_CONTAINERS);
+    for (const container of containers) {
+      registeredCount += registerTextNodesInTree(container, {
+        markDirty: true,
+        onlyVisible: true,
+        limit: MAX_GOOGLE_CANDIDATES_PER_CONTAINER
+      });
+    }
+    return registeredCount;
+  }
+
+  return registerTextNodesInTree(document.body, {
+    markDirty: true,
+    onlyVisible: true,
+    limit: SCROLL_REFRESH_TEXT_NODE_LIMIT
+  });
+}
+
+function scheduleScrollVisibilityRefresh() {
+  if (scrollVisibilityRefreshFrameId) {
+    return;
+  }
+
+  scrollVisibilityRefreshFrameId = window.requestAnimationFrame(() => {
+    scrollVisibilityRefreshFrameId = null;
+    if (extensionContextInvalidated || isUnsupportedPage()) {
+      return;
+    }
+
+    const registeredCount = refreshVisibleCandidateRegistrations();
+    if (registeredCount > 0) {
+      schedulePipeline("visibility");
+    }
+  });
+}
+
 function markTextNodeDirty(textNode) {
   if (!(textNode instanceof Text)) return false;
   const state = registerTextNode(textNode);
@@ -4624,18 +4666,34 @@ function initializeViewportListeners() {
     "scroll",
     () => {
       syncOverlays();
+      scheduleScrollVisibilityRefresh();
     },
     true
   );
 
   window.addEventListener("resize", () => {
     syncOverlays();
+    scheduleScrollVisibilityRefresh();
     schedulePipeline("visibility");
   });
 
   if (window.visualViewport) {
-    window.visualViewport.addEventListener("scroll", syncOverlays, { passive: true });
-    window.visualViewport.addEventListener("resize", syncOverlays, { passive: true });
+    window.visualViewport.addEventListener(
+      "scroll",
+      () => {
+        syncOverlays();
+        scheduleScrollVisibilityRefresh();
+      },
+      { passive: true }
+    );
+    window.visualViewport.addEventListener(
+      "resize",
+      () => {
+        syncOverlays();
+        scheduleScrollVisibilityRefresh();
+      },
+      { passive: true }
+    );
   }
 }
 
