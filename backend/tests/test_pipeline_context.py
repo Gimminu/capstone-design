@@ -285,6 +285,20 @@ class PipelineContextTests(unittest.TestCase):
         self.assertTrue(qudtls["is_offensive"])
         self.assertEqual([span["text"] for span in qudtls["evidence_spans"]], ["Qudtls"])
 
+    def test_english_profanity_variants_use_dictionary_spans(self):
+        pipeline = self.make_pipeline()
+
+        bitch = pipeline.analyze("bitch 뜻")
+        shit = pipeline.analyze("shit 뜻")
+        fuck = pipeline.analyze("fuck theme")
+
+        self.assertTrue(bitch["is_offensive"])
+        self.assertEqual([span["text"] for span in bitch["evidence_spans"]], ["bitch"])
+        self.assertTrue(shit["is_offensive"])
+        self.assertEqual([span["text"] for span in shit["evidence_spans"]], ["shit"])
+        self.assertTrue(fuck["is_offensive"])
+        self.assertEqual([span["text"] for span in fuck["evidence_spans"]], ["fuck"])
+
     def test_batch_path_preserves_order_and_deduplicates_model_work(self):
         pipeline = self.make_pipeline()
         texts = ["시발 뭐하는 거야", "병신아 꺼져", "시발 뭐하는 거야"]

@@ -328,6 +328,8 @@ function syncEditableSingleLineBarLayout(state, style, rect) {
 
   const text = String(state.maskedText || getEditableElementText(state.element) || "");
   const spans = normalizeEvidenceSpans(state.maskedSpans, text);
+  const coversFullText = doSpansCoverFullText(spans, text);
+  const singleLineElement = isSingleLineEditableElement(state.element);
   const paddingLeft = parsePixelValue(style.paddingLeft);
   const paddingRight = parsePixelValue(style.paddingRight);
   const paddingTop = parsePixelValue(style.paddingTop);
@@ -338,11 +340,16 @@ function syncEditableSingleLineBarLayout(state, style, rect) {
       ? Math.max(0, parsePixelValue(style.fontSize) * 1.2)
       : parsePixelValue(style.lineHeight);
   const contentHeight = Math.max(0, rect.height - paddingTop - paddingBottom);
-  const topOffset = paddingTop + Math.max(0, (contentHeight - lineHeight) / 2);
+  const topOffset = singleLineElement
+    ? 0
+    : Math.max(0, paddingTop - 1);
   const maxWidth = Math.max(0, rect.width - paddingLeft - paddingRight);
+  const barHorizontalPadding = 2;
   const barsKey = JSON.stringify({
     text,
     spans: spans.map((span) => [span.start, span.end]),
+    coversFullText,
+    singleLineElement,
     paddingLeft: Math.round(paddingLeft),
     paddingRight: Math.round(paddingRight),
     paddingTop: Math.round(paddingTop),
@@ -369,8 +376,8 @@ function syncEditableSingleLineBarLayout(state, style, rect) {
       10,
       measureEditableTextWidth(text.slice(span.start, span.end), style)
     );
-    const left = paddingLeft + prefixWidth - scrollLeft;
-    const right = left + spanWidth;
+    const left = paddingLeft + prefixWidth - scrollLeft - barHorizontalPadding;
+    const right = left + spanWidth + barHorizontalPadding * 2;
 
     if (right <= paddingLeft || left >= paddingLeft + maxWidth) {
       continue;
@@ -384,7 +391,11 @@ function syncEditableSingleLineBarLayout(state, style, rect) {
     bar.style.left = `${Math.round(Math.max(paddingLeft, left))}px`;
     bar.style.top = `${Math.round(Math.max(0, topOffset))}px`;
     bar.style.width = `${Math.round(Math.min(paddingLeft + maxWidth, right) - Math.max(paddingLeft, left))}px`;
-    bar.style.height = `${Math.round(Math.max(lineHeight, Math.min(contentHeight || lineHeight, lineHeight + 2)))}px`;
+    bar.style.height = `${Math.round(
+      coversFullText || singleLineElement
+        ? rect.height
+        : Math.max(lineHeight + 2, contentHeight + 2)
+    )}px`;
     fragment.appendChild(bar);
   }
 
@@ -397,12 +408,25 @@ function renderEditableSingleLineBarMask(state, text, spans, settings, tooltip) 
   state.maskedText = text;
   state.maskedSpans = spans;
   state.overlayTooltip = tooltip;
+  const concealUnderlyingText = doSpansCoverFullText(spans, text);
 
   state.element.style.webkitTextSecurity = state.originalWebkitTextSecurity || "";
   state.element.style.textSecurity = state.originalTextSecurity || "";
-  state.element.style.color = state.originalColor || "";
-  state.element.style.webkitTextFillColor = state.originalWebkitTextFillColor || "";
-  state.element.style.textShadow = state.originalTextShadow || "";
+  if (concealUnderlyingText) {
+    const computedStyle = window.getComputedStyle(state.element);
+    const caretColor = computedStyle.caretColor && computedStyle.caretColor !== "auto"
+      ? computedStyle.caretColor
+      : computedStyle.color;
+    state.element.style.setProperty("color", "transparent", "important");
+    state.element.style.setProperty("-webkit-text-fill-color", "transparent", "important");
+    state.element.style.setProperty("caret-color", caretColor, "important");
+    state.element.style.setProperty("text-shadow", "none", "important");
+  } else {
+    state.element.style.color = state.originalColor || "";
+    state.element.style.webkitTextFillColor = state.originalWebkitTextFillColor || "";
+    state.element.style.caretColor = state.originalCaretColor || "";
+    state.element.style.textShadow = state.originalTextShadow || "";
+  }
   state.nativeMaskApplied = false;
 
   syncEditableOverlayLayout(state);
@@ -510,6 +534,18 @@ function shouldUseEditableNativeMask(element, spans, text) {
   return doSpansCoverFullText(spans, text);
 }
 
+function shouldUseEditableSingleLineBarMask(element, spans) {
+  if (!Array.isArray(spans) || spans.length === 0) {
+    return false;
+  }
+
+  if (!(element instanceof HTMLInputElement) && !(element instanceof HTMLTextAreaElement)) {
+    return false;
+  }
+
+  return isSingleLineEditableElement(element);
+}
+
 function renderEditableValueOutcome(candidate, outcome, settings) {
   const state = candidate?.state;
   if (!state?.element) return;
@@ -528,7 +564,9 @@ function renderEditableValueOutcome(candidate, outcome, settings) {
   const renderMode =
     shouldUseEditableNativeMask(state.element, spans, candidate.text)
       ? "native-mask"
-      : "overlay";
+      : shouldUseEditableSingleLineBarMask(state.element, spans)
+        ? "single-line-bars"
+        : "overlay";
 
   const decisionKey = JSON.stringify({
     text: candidate.text,
@@ -548,6 +586,8 @@ function renderEditableValueOutcome(candidate, outcome, settings) {
   const tooltip = buildMaskTooltip(outcome.categories, outcome.reasons, settings);
   if (renderMode === "native-mask") {
     renderEditableNativeMask(state, tooltip, settings);
+  } else if (renderMode === "single-line-bars") {
+    renderEditableSingleLineBarMask(state, candidate.text, spans, settings, tooltip);
   } else {
     renderEditableOverlay(state, candidate.text, spans, settings, tooltip);
   }

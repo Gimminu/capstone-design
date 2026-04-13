@@ -33,8 +33,8 @@ const BACKEND_HEALTH_TIMEOUT_MS = 2500;
 const RESPONSE_CACHE_LIMIT = 2000;
 const SAFE_RESPONSE_CACHE_TTL_MS = 5000;
 const OFFENSIVE_RESPONSE_CACHE_TTL_MS = 90000;
-const SMALL_ANALYZE_BATCH_CHUNK_SIZE = 3;
-const MEDIUM_ANALYZE_BATCH_CHUNK_SIZE = 5;
+const SMALL_ANALYZE_BATCH_CHUNK_SIZE = 2;
+const MEDIUM_ANALYZE_BATCH_CHUNK_SIZE = 4;
 const LARGE_ANALYZE_BATCH_CHUNK_SIZE = 6;
 const XL_ANALYZE_BATCH_CHUNK_SIZE = 12;
 const FULL_ANALYSIS_RESPONSE_CACHE = new Map();
@@ -94,11 +94,11 @@ function getAnalyzeBatchChunkSize(requestTimeoutMs, textCount, mode = "foregroun
 
   const normalizedMode = normalizeAnalyzeBatchMode(mode);
   if (normalizedMode === "background-validation") {
-    return Math.min(2, textCount);
+    return 1;
   }
 
   if (normalizedMode === "reconcile") {
-    return Math.min(3, textCount);
+    return Math.min(2, textCount);
   }
 
   if (requestTimeoutMs <= 450) {
@@ -129,7 +129,8 @@ function shouldSplitAnalyzeBatchRequest(error, chunkLength) {
 }
 
 function shouldTolerateAnalyzeBatchChunkFailure(error, mode) {
-  if (normalizeAnalyzeBatchMode(mode) !== "background-validation") {
+  const normalizedMode = normalizeAnalyzeBatchMode(mode);
+  if (normalizedMode !== "background-validation" && normalizedMode !== "reconcile") {
     return false;
   }
 
@@ -472,17 +473,33 @@ async function performAnalyzeBatchRequest(apiBaseUrl, texts, requestTimeoutMs, s
   return validateAnalyzeBatchResponse(body, texts);
 }
 
+function getAnalyzeBatchRequestTimeoutMs(requestTimeoutMs, mode = "foreground") {
+  const normalizedMode = normalizeAnalyzeBatchMode(mode);
+  if (normalizedMode === "background-validation") {
+    return Math.max(12000, requestTimeoutMs);
+  }
+
+  if (normalizedMode === "reconcile") {
+    return Math.max(8000, requestTimeoutMs);
+  }
+
+  return requestTimeoutMs;
+}
+
 async function performAnalyzeBatchRequestWithSplits(
   apiBaseUrl,
   texts,
   requestTimeoutMs,
-  sensitivity
+  sensitivity,
+  mode = "foreground"
 ) {
+  const effectiveTimeoutMs = getAnalyzeBatchRequestTimeoutMs(requestTimeoutMs, mode);
+
   try {
     const results = await performAnalyzeBatchRequest(
       apiBaseUrl,
       texts,
-      requestTimeoutMs,
+      effectiveTimeoutMs,
       sensitivity
     );
 
@@ -501,13 +518,15 @@ async function performAnalyzeBatchRequestWithSplits(
       apiBaseUrl,
       texts.slice(0, midpoint),
       requestTimeoutMs,
-      sensitivity
+      sensitivity,
+      mode
     );
     const right = await performAnalyzeBatchRequestWithSplits(
       apiBaseUrl,
       texts.slice(midpoint),
       requestTimeoutMs,
-      sensitivity
+      sensitivity,
+      mode
     );
 
     return {
@@ -533,7 +552,8 @@ async function performAnalyzeBatchRequests(apiBaseUrl, texts, requestTimeoutMs, 
         apiBaseUrl,
         chunk,
         requestTimeoutMs,
-        sensitivity
+        sensitivity,
+        mode
       );
     } catch (error) {
       if (!shouldTolerateAnalyzeBatchChunkFailure(error, mode)) {

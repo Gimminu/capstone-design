@@ -101,7 +101,7 @@ const INPUT_PIPELINE_DEBOUNCE_MS = 0;
 const VISIBILITY_PIPELINE_DEBOUNCE_MS = 0;
 const RECONCILE_FLUSH_DELAY_MS = 12;
 const RECONCILE_FAST_FLUSH_DELAY_MS = 0;
-const RECONCILE_CHUNK_SIZE = 4;
+const RECONCILE_CHUNK_SIZE = 2;
 const MAX_FOREGROUND_CANDIDATES = 12;
 const MAX_FOREGROUND_WAVE_CANDIDATES = 6;
 const MAX_FOREGROUND_WAVE_CONTAINERS = 3;
@@ -118,7 +118,7 @@ const RECONCILE_ANALYZE_TIMEOUT_MS = 3000;
 const BACKEND_WARMUP_TEXTS = ["안녕하세요", "검색 테스트", "청마루 실시간 필터"];
 const FOREGROUND_STANDALONE_SAFE_CACHE_TTL_MS = 7000;
 const FOREGROUND_CONTEXTUAL_SAFE_CACHE_TTL_MS = 800;
-const RECONCILE_CONTEXTUAL_SAFE_CACHE_TTL_MS = 1500;
+const RECONCILE_CONTEXTUAL_SAFE_CACHE_TTL_MS = 600;
 const OFFENSIVE_CACHE_TTL_MS = 90000;
 const DECISION_STAGE_RANK = Object.freeze({
   foreground: 1,
@@ -166,7 +166,7 @@ const SAFE_BROWSER_UI_LABELS = new Set([
 ]);
 
 const HIGH_SIGNAL_PROFANITY_PATTERN =
-  /(씨[이\s]*발|시[이\s]*발|씨[이\s]*팔|시[이\s]*팔|ㅅㅂ|ㅆㅂ|병[.\s]*신|ㅂㅅ|지[이\s]*랄|ㅈㄹ|존\s*나|ㅈㄴ|좆|좇|씹|개[새세][끼키]|꺼[져저]|닥[쳐치]|죽어|뒤져|느[금끔]마|니[금끔]마|미친[놈년새]?|ssibal|sibal|tlqkf|qudtls)/i;
+  /(씨[이\s]*발|시[이\s]*발|씨[이\s]*팔|시[이\s]*팔|ㅅㅂ|ㅆㅂ|병[.\s]*신|ㅂㅅ|지[이\s]*랄|ㅈㄹ|존\s*나|ㅈㄴ|좆|좇|씹|개[새세][끼키]|꺼[져저]|닥[쳐치]|죽어|뒤져|느[금끔]마|니[금끔]마|미친[놈년새]?|ssibal|sibal|tlqkf|qudtls|byungsin|gaesaekki|gaesaek|jiral|jonna|nigaumma|negeumma|fuck(?:ing|er|ed)?|shit(?:ty|head|s)?|bitch(?:es)?|ass[\s_-]*hole|bastard(?:s)?|mother[\s_-]*fucker|dick|pussy|slut|whore)/i;
 
 let nextTextNodeId = 1;
 let nextEditableValueId = 1;
@@ -1564,6 +1564,11 @@ function isGoogleSearchPage() {
   return /(^|\.)google\./i.test(location.hostname || "") && location.pathname === "/search";
 }
 
+function isRapidlyChangingRealtimeHost() {
+  const hostname = String(location.hostname || "").toLowerCase();
+  return /(^|\.)google\./i.test(hostname) || /(^|\.)youtube\.com$/i.test(hostname);
+}
+
 function isGooglePriorityCandidate(candidate) {
   if (!isGoogleSearchPage()) return false;
   const element = candidate?.element;
@@ -2529,11 +2534,23 @@ function shouldReuseCachedAnalysis(entry, cachedValue) {
     return false;
   }
 
+  if (cachedValue.__shieldtextSkipped === true) {
+    return false;
+  }
+
   if (cachedValue.is_offensive) {
     return true;
   }
 
   const scope = normalizeLabel(entry?.cacheScope || "");
+  if (
+    !cachedValue.is_offensive &&
+    isRapidlyChangingRealtimeHost() &&
+    (scope === "reconcile-contextual" || scope === "reconcile-fallback")
+  ) {
+    return false;
+  }
+
   if (scope === "reconcile-contextual" || scope === "reconcile-fallback") {
     return true;
   }
@@ -2552,6 +2569,10 @@ function shouldReuseCachedAnalysis(entry, cachedValue) {
 
 function shouldCacheAnalysisResult(value) {
   if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  if (value.__shieldtextSkipped === true) {
     return false;
   }
 
@@ -2943,8 +2964,11 @@ async function analyzePayloadWithBackend(items, onProgress, options = {}) {
         return;
       }
 
+      const skippedResult = result?.__shieldtextSkipped === true;
       const cacheableResult =
-        result && typeof result === "object"
+        skippedResult
+          ? null
+          : result && typeof result === "object"
           ? {
               ...result,
               text: String(result.text || result.original || request.text || "")
