@@ -115,11 +115,18 @@ function renderEditableNativeMask(state, tooltip, settings) {
   state.overlayContent = null;
   state.overlayMode = "";
 
-  state.element.removeAttribute("title");
+  if (tooltip) {
+    state.element.title = tooltip;
+  } else {
+    state.element.removeAttribute("title");
+  }
   state.element.style.webkitTextSecurity =
     settings?.interventionMode === "hide" ? "disc" : "square";
   state.element.style.textSecurity =
     settings?.interventionMode === "hide" ? "disc" : "square";
+  state.element.style.setProperty("color", "transparent", "important");
+  state.element.style.setProperty("-webkit-text-fill-color", "transparent", "important");
+  state.element.style.setProperty("text-shadow", "none", "important");
   state.nativeMaskApplied = true;
   MASKED_EDITABLE_STATE_IDS.add(state.nodeId);
 }
@@ -476,6 +483,33 @@ function renderEditableOverlay(state, text, spans, settings, tooltip) {
   scheduleEditableOverlaySync(1);
 }
 
+function doSpansCoverFullText(spans, text) {
+  if (!Array.isArray(spans) || spans.length === 0) {
+    return false;
+  }
+
+  if (spans.length !== 1) {
+    return false;
+  }
+
+  const fullLength = String(text || "").length;
+  const span = spans[0];
+  return Number(span.start) <= 0 && Number(span.end) >= fullLength;
+}
+
+function shouldUseEditableNativeMask(element, spans, text) {
+  if (!(element instanceof HTMLInputElement)) {
+    return false;
+  }
+
+  const inputType = String(element.type || "text").toLowerCase();
+  if (!["text", "search", ""].includes(inputType)) {
+    return false;
+  }
+
+  return doSpansCoverFullText(spans, text);
+}
+
 function renderEditableValueOutcome(candidate, outcome, settings) {
   const state = candidate?.state;
   if (!state?.element) return;
@@ -491,7 +525,10 @@ function renderEditableValueOutcome(candidate, outcome, settings) {
     return;
   }
 
-  const renderMode = "overlay";
+  const renderMode =
+    shouldUseEditableNativeMask(state.element, spans, candidate.text)
+      ? "native-mask"
+      : "overlay";
 
   const decisionKey = JSON.stringify({
     text: candidate.text,
@@ -509,8 +546,8 @@ function renderEditableValueOutcome(candidate, outcome, settings) {
   }
 
   const tooltip = buildMaskTooltip(outcome.categories, outcome.reasons, settings);
-  if (renderMode === "single-line-bars") {
-    renderEditableSingleLineBarMask(state, candidate.text, spans, settings, tooltip);
+  if (renderMode === "native-mask") {
+    renderEditableNativeMask(state, tooltip, settings);
   } else {
     renderEditableOverlay(state, candidate.text, spans, settings, tooltip);
   }

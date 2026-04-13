@@ -1098,6 +1098,8 @@ function collectEditableValueCandidates(limit = Number.POSITIVE_INFINITY) {
 function collectTextCandidatesFromElements(elements, limit = Number.POSITIVE_INFINITY, options = {}) {
   const candidates = [];
   const seenNodeIds = new Set();
+  const candidateFilter =
+    typeof options.candidateFilter === "function" ? options.candidateFilter : null;
   const perElementLimit = Math.max(
     1,
     Number.isFinite(options.perElementLimit)
@@ -1140,6 +1142,7 @@ function collectTextCandidatesFromElements(elements, limit = Number.POSITIVE_INF
 
       const candidate = buildForcedVisibleCandidateFromTextNode(walker.currentNode);
       if (!candidate) continue;
+      if (candidateFilter && !candidateFilter(candidate, element)) continue;
       if (seenNodeIds.has(candidate.nodeId)) continue;
 
       seenNodeIds.add(candidate.nodeId);
@@ -1165,6 +1168,54 @@ function collectGoogleSearchPriorityContainerCandidates(limit = MAX_DOMAIN_PRIOR
       perElementLimit: Math.min(4, MAX_GOOGLE_CANDIDATES_PER_CONTAINER)
     }
   );
+}
+
+function collectGoogleHighSignalInteractiveCandidates(limit = MAX_DOMAIN_PRIORITY_CANDIDATES) {
+  if (!isGoogleSearchPage()) {
+    return [];
+  }
+
+  const selectors = [
+    "#search button",
+    "#search [role='button']",
+    "#search a[href]",
+    "#rhs button",
+    "#rhs [role='button']",
+    "#rhs a[href]"
+  ];
+  const elements = [];
+  const seenElements = new Set();
+
+  for (const selector of selectors) {
+    for (const element of document.querySelectorAll(selector)) {
+      if (!(element instanceof Element)) continue;
+      if (seenElements.has(element)) continue;
+      if (!element.isConnected || !isElementVisible(element)) continue;
+      if (!isElementNearViewport(element.getBoundingClientRect())) continue;
+
+      const text = normalizeText(element.innerText || element.textContent || "");
+      if (!text || !HIGH_SIGNAL_PROFANITY_PATTERN.test(text)) continue;
+      if (SAFE_BROWSER_UI_LABELS.has(normalizeLabel(text))) continue;
+
+      seenElements.add(element);
+      elements.push(element);
+      if (elements.length >= limit * 3) {
+        break;
+      }
+    }
+
+    if (elements.length >= limit * 3) {
+      break;
+    }
+  }
+
+  return collectTextCandidatesFromElements(elements, limit * 2, {
+    perElementLimit: 3,
+    candidateFilter(candidate) {
+      const text = normalizeText(candidate.text);
+      return Boolean(text) && HIGH_SIGNAL_PROFANITY_PATTERN.test(text);
+    }
+  });
 }
 
 function collectGoogleSearchPriorityCandidates(limit = MAX_DOMAIN_PRIORITY_CANDIDATES) {
@@ -1209,6 +1260,15 @@ function collectGoogleSearchPriorityCandidates(limit = MAX_DOMAIN_PRIORITY_CANDI
 
   const candidates = [];
   const seenNodeIds = new Set();
+
+  for (const candidate of collectGoogleHighSignalInteractiveCandidates(limit)) {
+    if (seenNodeIds.has(candidate.nodeId)) continue;
+    seenNodeIds.add(candidate.nodeId);
+    candidates.push(candidate);
+    if (candidates.length >= limit * 2) {
+      return candidates;
+    }
+  }
 
   for (const candidate of collectGoogleSearchPriorityContainerCandidates(limit)) {
     if (seenNodeIds.has(candidate.nodeId)) continue;
