@@ -125,6 +125,16 @@ function renderEditableNativeMask(state, tooltip, settings) {
 }
 
 function getEditableOverlayHost(element) {
+  if (element instanceof HTMLElement) {
+    if (element.offsetParent instanceof HTMLElement) {
+      return element.offsetParent;
+    }
+
+    if (element.parentElement instanceof HTMLElement) {
+      return element.parentElement;
+    }
+  }
+
   return document.body || document.documentElement;
 }
 
@@ -276,6 +286,16 @@ function syncEditableOverlayLayout(state) {
     : element instanceof HTMLTextAreaElement
       ? "pre-wrap"
       : "pre";
+
+  if (isSingleLineEditable) {
+    overlayContent.style.display = "flex";
+    overlayContent.style.alignItems = "center";
+    overlayContent.style.height = `${Math.round(rect.height)}px`;
+    overlayContent.style.paddingTop = "0";
+    overlayContent.style.paddingBottom = "0";
+    overlayContent.style.lineHeight =
+      style.lineHeight === "normal" ? style.fontSize : style.lineHeight;
+  }
 
   if (state.overlayMode === "single-line-bars") {
     overlayContent.style.width = `${Math.round(rect.width)}px`;
