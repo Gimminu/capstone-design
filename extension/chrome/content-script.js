@@ -1494,6 +1494,13 @@ function shouldPreferStandaloneAnalysis(candidate) {
   }
 
   if (isGoogleSearchPage()) {
+    if (
+      candidate.element instanceof Element &&
+      shouldAllowGoogleInteractiveElement(candidate.element) &&
+      isShortHighSignalCandidate(candidate)
+    ) {
+      return true;
+    }
     return false;
   }
 
@@ -1636,6 +1643,29 @@ function selectGoogleForegroundCandidates(candidates) {
   const perContainerCount = new Map();
 
   for (const candidate of editableCandidates) {
+    selected.push(candidate);
+    selectedNodeIds.add(candidate.nodeId);
+  }
+
+  const highSignalInteractiveCandidates = sortCandidatesByUrgency(
+    candidates.filter(
+      (candidate) =>
+        candidate?.candidateKind !== "editable-value" &&
+        candidate.element instanceof Element &&
+        shouldAllowGoogleInteractiveElement(candidate.element) &&
+        isShortHighSignalCandidate(candidate)
+    ),
+    buildRealtimeHints(cachedSettings)
+  );
+
+  for (const candidate of highSignalInteractiveCandidates) {
+    if (selected.length >= MAX_FOREGROUND_WAVE_CANDIDATES) {
+      break;
+    }
+    if (selectedNodeIds.has(candidate.nodeId)) {
+      continue;
+    }
+
     selected.push(candidate);
     selectedNodeIds.add(candidate.nodeId);
   }

@@ -63,7 +63,9 @@
 .shieldtext-editable-mask,
 .shieldtext-editable-hide {
   display: inline;
-  color: transparent;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: none !important;
   border: 0;
   border-radius: 0.12em;
   box-decoration-break: clone;
