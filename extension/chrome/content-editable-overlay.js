@@ -409,7 +409,7 @@ function renderEditableSingleLineBarMask(state, text, spans, settings, tooltip) 
   state.overlayRoot.removeAttribute("title");
   state.element.removeAttribute("title");
   MASKED_EDITABLE_STATE_IDS.add(state.nodeId);
-  scheduleEditableOverlaySync(1);
+  scheduleEditableOverlaySync(2);
 }
 
 function renderEditableOverlay(state, text, spans, settings, tooltip) {
@@ -480,7 +480,7 @@ function renderEditableOverlay(state, text, spans, settings, tooltip) {
   state.overlayRoot.removeAttribute("title");
   state.element.removeAttribute("title");
   MASKED_EDITABLE_STATE_IDS.add(state.nodeId);
-  scheduleEditableOverlaySync(1);
+  scheduleEditableOverlaySync(2);
 }
 
 function doSpansCoverFullText(spans, text) {
@@ -574,18 +574,32 @@ function syncAllMaskedEditableOverlays() {
 function scheduleEditableOverlaySync(frames = 1) {
   pendingEditableOverlaySyncFrames = Math.max(
     pendingEditableOverlaySyncFrames,
-    Math.min(1, Math.max(0, Number(frames || 0)))
+    Math.min(2, Math.max(0, Number(frames || 0)))
   );
 
   if (extensionContextInvalidated || overlaySyncFrameId) {
     return;
   }
 
-  overlaySyncFrameId = window.requestAnimationFrame(() => {
-    overlaySyncFrameId = null;
-    syncAllMaskedEditableOverlays();
-    if (pendingEditableOverlaySyncFrames > 0) {
+  const runSync = () => {
+    if (extensionContextInvalidated) {
+      overlaySyncFrameId = null;
       pendingEditableOverlaySyncFrames = 0;
+      return;
     }
-  });
+
+    overlaySyncFrameId = window.requestAnimationFrame(() => {
+      overlaySyncFrameId = null;
+      syncAllMaskedEditableOverlays();
+      if (pendingEditableOverlaySyncFrames > 0) {
+        pendingEditableOverlaySyncFrames -= 1;
+      }
+
+      if (pendingEditableOverlaySyncFrames > 0) {
+        runSync();
+      }
+    });
+  };
+
+  runSync();
 }
