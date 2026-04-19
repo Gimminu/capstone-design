@@ -483,7 +483,7 @@ function getAnalyzeBatchRequestTimeoutMs(requestTimeoutMs, mode = "foreground") 
     return Math.max(8000, requestTimeoutMs);
   }
 
-  return requestTimeoutMs;
+  return Math.max(650, requestTimeoutMs);
 }
 
 async function performAnalyzeBatchRequestWithSplits(
@@ -702,7 +702,15 @@ async function analyzeTextBatch(message) {
     };
   } catch (error) {
     const normalized = normalizeBackendError(error, "ANALYZE_BATCH_FAILED");
-    console.error("[청마루] analyzeTextBatch failed", error);
+    if (analysisMode === "foreground") {
+      console.error("[청마루] analyzeTextBatch failed", error);
+    } else {
+      console.warn("[청마루] analyzeTextBatch degraded", {
+        analysisMode,
+        errorCode: normalized.errorCode,
+        reason: normalized.reason
+      });
+    }
     return {
       ok: false,
       reason: normalized.reason,

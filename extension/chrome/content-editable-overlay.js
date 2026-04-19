@@ -115,11 +115,8 @@ function renderEditableNativeMask(state, tooltip, settings) {
   state.overlayContent = null;
   state.overlayMode = "";
 
-  if (tooltip) {
-    state.element.title = tooltip;
-  } else {
-    state.element.removeAttribute("title");
-  }
+  state.overlayTooltip = tooltip || "";
+  state.element.removeAttribute("title");
   state.element.style.webkitTextSecurity =
     settings?.interventionMode === "hide" ? "disc" : "square";
   state.element.style.textSecurity =
@@ -295,13 +292,7 @@ function syncEditableOverlayLayout(state) {
       : "pre";
 
   if (isSingleLineEditable) {
-    overlayContent.style.display = "flex";
-    overlayContent.style.alignItems = "center";
     overlayContent.style.height = `${Math.round(rect.height)}px`;
-    overlayContent.style.paddingTop = "0";
-    overlayContent.style.paddingBottom = "0";
-    overlayContent.style.lineHeight =
-      style.lineHeight === "normal" ? style.fontSize : style.lineHeight;
   }
 
   if (state.overlayMode === "single-line-bars") {
@@ -522,28 +513,11 @@ function doSpansCoverFullText(spans, text) {
 }
 
 function shouldUseEditableNativeMask(element, spans, text) {
-  if (!(element instanceof HTMLInputElement)) {
-    return false;
-  }
-
-  const inputType = String(element.type || "text").toLowerCase();
-  if (!["text", "search", ""].includes(inputType)) {
-    return false;
-  }
-
-  return doSpansCoverFullText(spans, text);
+  return false;
 }
 
 function shouldUseEditableSingleLineBarMask(element, spans) {
-  if (!Array.isArray(spans) || spans.length === 0) {
-    return false;
-  }
-
-  if (!(element instanceof HTMLInputElement) && !(element instanceof HTMLTextAreaElement)) {
-    return false;
-  }
-
-  return isSingleLineEditableElement(element);
+  return false;
 }
 
 function renderEditableValueOutcome(candidate, outcome, settings) {

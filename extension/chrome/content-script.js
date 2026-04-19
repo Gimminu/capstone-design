@@ -113,7 +113,7 @@ const MAX_DOMAIN_PRIORITY_CANDIDATES = 6;
 const MAX_GOOGLE_CANDIDATES_PER_CONTAINER = 12;
 const MAX_SELF_TEST_CASES = 32;
 const MAX_SELF_TEST_HISTORY = 20;
-const FOREGROUND_ANALYZE_TIMEOUT_MS = 420;
+const FOREGROUND_ANALYZE_TIMEOUT_MS = 650;
 const RECONCILE_ANALYZE_TIMEOUT_MS = 3000;
 const BACKEND_WARMUP_TEXTS = ["안녕하세요", "검색 테스트", "청마루 실시간 필터"];
 const FOREGROUND_STANDALONE_SAFE_CACHE_TTL_MS = 7000;
@@ -4723,7 +4723,6 @@ function initializeInputListeners() {
       pendingImmediateInputElement = target;
       DIRTY_NODE_IDS.add(candidate.nodeId);
       scheduleImmediateInputPipeline(target, "input-hot-path");
-      scheduleEditableOverlaySync();
     },
     true
   );
@@ -4739,7 +4738,6 @@ function initializeInputListeners() {
       clearStaleEditableMaskForElement(target);
       pendingImmediateInputElement = target;
       scheduleImmediateInputPipeline(target, "input-hot-path");
-      scheduleEditableOverlaySync();
     },
     true
   );
