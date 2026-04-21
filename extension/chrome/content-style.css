@@ -23,6 +23,7 @@
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
   color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
   text-shadow: none !important;
 }
 
@@ -55,6 +56,18 @@
   background: transparent;
 }
 
+.shieldtext-editable-source-concealed {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: none !important;
+}
+
+.shieldtext-editable-source-concealed::selection {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  background: transparent !important;
+}
+
 .shieldtext-editable-visible {
   color: inherit;
   background: transparent;
@@ -78,17 +91,6 @@
 
 .shieldtext-editable-hide {
   background: rgb(24, 24, 24);
-}
-
-.shieldtext-editable-bar-mask {
-  position: absolute;
-  display: block;
-  border-radius: 0.18em;
-  background: rgb(18, 18, 18);
-}
-
-.shieldtext-editable-bar-mask-single {
-  min-width: 8px;
 }
 
 .shieldtext-site-policy-overlay {

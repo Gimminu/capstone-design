@@ -203,7 +203,6 @@ let scheduledReconcileDelayMs = 0;
 let isReconcileRunning = false;
 let hotPathStatsPersistTimerId = null;
 let pendingHotPathStats = null;
-let editableTextMeasureCanvas = null;
 const RECONCILE_QUEUE = new Map();
 let bootstrapStarted = false;
 let bootstrapRetryTimerId = null;
@@ -708,7 +707,6 @@ function getEditableValueState(element) {
       overlayTooltip: "",
       overlayRenderKey: "",
       overlayLayoutKey: "",
-      overlayBarsKey: "",
       nativeMaskApplied: false
     };
     EDITABLE_VALUE_STATE_BY_ID.set(nodeId, state);

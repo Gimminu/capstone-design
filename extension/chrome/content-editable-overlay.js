@@ -33,13 +33,13 @@ function restoreEditableValueState(state) {
   state.overlayTooltip = "";
   state.overlayRenderKey = "";
   state.overlayLayoutKey = "";
-  state.overlayBarsKey = "";
   state.element.style.color = state.originalColor || "";
   state.element.style.webkitTextFillColor = state.originalWebkitTextFillColor || "";
   state.element.style.caretColor = state.originalCaretColor || "";
   state.element.style.textShadow = state.originalTextShadow || "";
   state.element.style.webkitTextSecurity = state.originalWebkitTextSecurity || "";
   state.element.style.textSecurity = state.originalTextSecurity || "";
+  state.element.classList.remove("shieldtext-editable-source-concealed");
   state.nativeMaskApplied = false;
   MASKED_EDITABLE_STATE_IDS.delete(state.nodeId);
 
@@ -70,50 +70,6 @@ function isSingleLineEditableElement(element) {
   return false;
 }
 
-function getEditableTextMeasureContext() {
-  if (!editableTextMeasureCanvas) {
-    editableTextMeasureCanvas = document.createElement("canvas");
-  }
-
-  return editableTextMeasureCanvas.getContext("2d");
-}
-
-function parsePixelValue(value) {
-  const numberValue = Number.parseFloat(String(value || "0"));
-  return Number.isFinite(numberValue) ? numberValue : 0;
-}
-
-function getSingleLineEditableFont(style) {
-  return style.font && style.font !== "normal normal normal normal 16px / normal sans-serif"
-    ? style.font
-    : [
-        style.fontStyle,
-        style.fontVariant,
-        style.fontWeight,
-        style.fontStretch,
-        style.fontSize,
-        style.lineHeight && style.lineHeight !== "normal" ? `/${style.lineHeight}` : "",
-        style.fontFamily
-      ]
-        .filter(Boolean)
-        .join(" ");
-}
-
-function measureEditableTextWidth(text, style) {
-  const context = getEditableTextMeasureContext();
-  if (!context) {
-    return 0;
-  }
-
-  context.font = getSingleLineEditableFont(style);
-  let width = context.measureText(String(text || "")).width;
-  const letterSpacing = parsePixelValue(style.letterSpacing);
-  if (letterSpacing !== 0 && text.length > 1) {
-    width += letterSpacing * Math.max(0, text.length - 1);
-  }
-  return width;
-}
-
 function renderEditableNativeMask(state, tooltip, settings) {
   if (!state?.element) return;
 
@@ -135,6 +91,7 @@ function renderEditableNativeMask(state, tooltip, settings) {
   state.element.style.setProperty("color", visibleMaskColor, "important");
   state.element.style.setProperty("-webkit-text-fill-color", visibleMaskColor, "important");
   state.element.style.setProperty("text-shadow", "none", "important");
+  state.element.classList.remove("shieldtext-editable-source-concealed");
   state.nativeMaskApplied = true;
   MASKED_EDITABLE_STATE_IDS.add(state.nodeId);
 }
@@ -298,149 +255,10 @@ function syncEditableOverlayLayout(state) {
     overlayContent.style.height = `${Math.round(rect.height)}px`;
   }
 
-  if (state.overlayMode === "single-line-bars") {
-    overlayContent.style.width = `${Math.round(rect.width)}px`;
-    overlayContent.style.minWidth = `${Math.round(rect.width)}px`;
-    overlayContent.style.minHeight = `${Math.round(rect.height)}px`;
-    overlayContent.style.transform = "none";
-    overlayContent.style.padding = "0";
-    overlayContent.style.border = "0";
-    syncEditableSingleLineBarLayout(state, style, rect);
-    return;
-  }
-
   overlayContent.style.width = `${Math.round(overlayWidth)}px`;
   overlayContent.style.minWidth = `${Math.round(overlayWidth)}px`;
   overlayContent.style.minHeight = `${Math.round(overlayHeight)}px`;
   overlayContent.style.transform = `translate3d(${-Math.round(Number(element.scrollLeft || 0))}px, ${-Math.round(Number(element.scrollTop || 0))}px, 0)`;
-}
-
-function syncEditableSingleLineBarLayout(state, style, rect) {
-  if (!state?.overlayContent || !state?.element) {
-    return;
-  }
-
-  const text = String(state.maskedText || getEditableElementText(state.element) || "");
-  const spans = normalizeEvidenceSpans(state.maskedSpans, text);
-  const coversFullText = doSpansCoverFullText(spans, text);
-  const singleLineElement = isSingleLineEditableElement(state.element);
-  const paddingLeft = parsePixelValue(style.paddingLeft);
-  const paddingRight = parsePixelValue(style.paddingRight);
-  const paddingTop = parsePixelValue(style.paddingTop);
-  const paddingBottom = parsePixelValue(style.paddingBottom);
-  const scrollLeft = Number(state.element.scrollLeft || 0);
-  const lineHeight =
-    style.lineHeight === "normal"
-      ? Math.max(0, parsePixelValue(style.fontSize) * 1.2)
-      : parsePixelValue(style.lineHeight);
-  const contentHeight = Math.max(0, rect.height - paddingTop - paddingBottom);
-  const singleLineBarHeight = singleLineElement
-    ? Math.max(
-        12,
-        Math.min(
-          Math.max(12, rect.height - 2),
-          Math.max(lineHeight + 2, contentHeight)
-        )
-      )
-    : Math.max(lineHeight + 2, contentHeight + 2);
-  const topOffset = singleLineElement
-    ? Math.max(0, paddingTop + Math.max(0, (contentHeight - singleLineBarHeight) / 2))
-    : Math.max(0, paddingTop - 1);
-  const maxWidth = Math.max(0, rect.width - paddingLeft - paddingRight);
-  const barHorizontalPadding = 2;
-  const barsKey = JSON.stringify({
-    text,
-    spans: spans.map((span) => [span.start, span.end]),
-    coversFullText,
-    singleLineElement,
-    paddingLeft: Math.round(paddingLeft),
-    paddingRight: Math.round(paddingRight),
-    paddingTop: Math.round(paddingTop),
-    paddingBottom: Math.round(paddingBottom),
-    scrollLeft: Math.round(scrollLeft),
-    lineHeight: Math.round(lineHeight),
-    rectWidth: Math.round(rect.width),
-    rectHeight: Math.round(rect.height)
-  });
-  const fragment = document.createDocumentFragment();
-
-  if (state.overlayBarsKey === barsKey) {
-    overlayLayoutReuseCount += 1;
-    return;
-  }
-
-  overlayLayoutRebuildCount += 1;
-  state.overlayBarsKey = barsKey;
-  state.overlayContent.textContent = "";
-
-  for (const span of spans) {
-    const prefixWidth = measureEditableTextWidth(text.slice(0, span.start), style);
-    const spanWidth = Math.max(
-      10,
-      measureEditableTextWidth(text.slice(span.start, span.end), style)
-    );
-    const left = paddingLeft + prefixWidth - scrollLeft - barHorizontalPadding;
-    const right = left + spanWidth + barHorizontalPadding * 2;
-
-    if (right <= paddingLeft || left >= paddingLeft + maxWidth) {
-      continue;
-    }
-
-    const bar = document.createElement("span");
-    bar.className =
-      state.element instanceof HTMLTextAreaElement
-        ? "shieldtext-editable-bar-mask"
-        : "shieldtext-editable-bar-mask shieldtext-editable-bar-mask-single";
-    bar.style.left = `${Math.round(Math.max(paddingLeft, left))}px`;
-    bar.style.top = `${Math.round(Math.max(0, topOffset))}px`;
-    bar.style.width = `${Math.round(Math.min(paddingLeft + maxWidth, right) - Math.max(paddingLeft, left))}px`;
-    bar.style.height = `${Math.round(
-      coversFullText
-        ? singleLineElement
-          ? singleLineBarHeight
-          : rect.height
-        : singleLineElement
-          ? singleLineBarHeight
-        : Math.max(lineHeight + 2, contentHeight + 2)
-    )}px`;
-    fragment.appendChild(bar);
-  }
-
-  state.overlayContent.appendChild(fragment);
-}
-
-function renderEditableSingleLineBarMask(state, text, spans, settings, tooltip) {
-  ensureEditableOverlay(state);
-  state.overlayMode = "single-line-bars";
-  state.maskedText = text;
-  state.maskedSpans = spans;
-  state.overlayTooltip = tooltip;
-  const concealUnderlyingText = doSpansCoverFullText(spans, text);
-
-  state.element.style.webkitTextSecurity = state.originalWebkitTextSecurity || "";
-  state.element.style.textSecurity = state.originalTextSecurity || "";
-  if (concealUnderlyingText) {
-    const computedStyle = window.getComputedStyle(state.element);
-    const caretColor = computedStyle.caretColor && computedStyle.caretColor !== "auto"
-      ? computedStyle.caretColor
-      : computedStyle.color;
-    state.element.style.setProperty("color", "transparent", "important");
-    state.element.style.setProperty("-webkit-text-fill-color", "transparent", "important");
-    state.element.style.setProperty("caret-color", caretColor, "important");
-    state.element.style.setProperty("text-shadow", "none", "important");
-  } else {
-    state.element.style.color = state.originalColor || "";
-    state.element.style.webkitTextFillColor = state.originalWebkitTextFillColor || "";
-    state.element.style.caretColor = state.originalCaretColor || "";
-    state.element.style.textShadow = state.originalTextShadow || "";
-  }
-  state.nativeMaskApplied = false;
-
-  syncEditableOverlayLayout(state);
-  state.overlayRoot.removeAttribute("title");
-  state.element.removeAttribute("title");
-  MASKED_EDITABLE_STATE_IDS.add(state.nodeId);
-  scheduleEditableOverlaySync(2);
 }
 
 function renderEditableOverlay(state, text, spans, settings, tooltip) {
@@ -463,6 +281,7 @@ function renderEditableOverlay(state, text, spans, settings, tooltip) {
   state.element.style.setProperty("-webkit-text-fill-color", "transparent", "important");
   state.element.style.setProperty("caret-color", caretColor, "important");
   state.element.style.setProperty("text-shadow", "none", "important");
+  state.element.classList.add("shieldtext-editable-source-concealed");
   state.nativeMaskApplied = false;
 
   const renderKey = JSON.stringify({
@@ -528,45 +347,11 @@ function doSpansCoverFullText(spans, text) {
   return Number(span.start) <= 0 && Number(span.end) >= fullLength;
 }
 
-function getEditableMaskedCoverage(spans, text) {
-  const sourceText = String(text || "");
-  if (!sourceText) {
-    return 0;
-  }
-
-  const normalizedSpans = normalizeEvidenceSpans(spans, sourceText);
-  if (normalizedSpans.length === 0) {
-    return 0;
-  }
-
-  const maskedLength = normalizedSpans.reduce(
-    (total, span) => total + Math.max(0, Number(span.end) - Number(span.start)),
-    0
-  );
-  const meaningfulLength = Math.max(1, sourceText.replace(/\s+/g, "").length);
-  return Math.min(1, maskedLength / meaningfulLength);
-}
-
 function shouldUseEditableNativeMask(element, spans, text) {
   return (
     element instanceof HTMLInputElement &&
     isSingleLineEditableElement(element) &&
     doSpansCoverFullText(spans, text)
-  );
-}
-
-function shouldUseEditableSingleLineBarMask(element, spans, text) {
-  const sourceText = String(text || "");
-  const compactLength = sourceText.replace(/\s+/g, "").length;
-  const maskedCoverage = getEditableMaskedCoverage(spans, sourceText);
-
-  return (
-    isSingleLineEditableElement(element) &&
-    Array.isArray(spans) &&
-    spans.length > 0 &&
-    !doSpansCoverFullText(spans, sourceText) &&
-    compactLength >= 6 &&
-    maskedCoverage < 0.6
   );
 }
 
@@ -588,9 +373,7 @@ function renderEditableValueOutcome(candidate, outcome, settings) {
   const renderMode =
     shouldUseEditableNativeMask(state.element, spans, candidate.text)
       ? "native-mask"
-      : shouldUseEditableSingleLineBarMask(state.element, spans, candidate.text)
-        ? "single-line-bars"
-        : "overlay";
+      : "overlay";
 
   const tooltip = buildMaskTooltip(outcome.categories, outcome.reasons, settings);
   const decisionKey = JSON.stringify({
@@ -604,8 +387,6 @@ function renderEditableValueOutcome(candidate, outcome, settings) {
   if (decisionKey === state.lastDecisionKey) {
     if (renderMode === "native-mask") {
       renderEditableNativeMask(state, tooltip, settings);
-    } else if (renderMode === "single-line-bars") {
-      renderEditableSingleLineBarMask(state, candidate.text, spans, settings, tooltip);
     } else {
       renderEditableOverlay(state, candidate.text, spans, settings, tooltip);
     }
@@ -614,8 +395,6 @@ function renderEditableValueOutcome(candidate, outcome, settings) {
 
   if (renderMode === "native-mask") {
     renderEditableNativeMask(state, tooltip, settings);
-  } else if (renderMode === "single-line-bars") {
-    renderEditableSingleLineBarMask(state, candidate.text, spans, settings, tooltip);
   } else {
     renderEditableOverlay(state, candidate.text, spans, settings, tooltip);
   }
