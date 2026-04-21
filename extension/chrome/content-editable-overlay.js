@@ -529,8 +529,13 @@ function shouldUseEditableNativeMask(element, spans, text) {
   return false;
 }
 
-function shouldUseEditableSingleLineBarMask(element, spans) {
-  return isSingleLineEditableElement(element) && Array.isArray(spans) && spans.length > 0;
+function shouldUseEditableSingleLineBarMask(element, spans, text) {
+  return (
+    isSingleLineEditableElement(element) &&
+    Array.isArray(spans) &&
+    spans.length > 0 &&
+    !doSpansCoverFullText(spans, text)
+  );
 }
 
 function renderEditableValueOutcome(candidate, outcome, settings) {
@@ -551,7 +556,7 @@ function renderEditableValueOutcome(candidate, outcome, settings) {
   const renderMode =
     shouldUseEditableNativeMask(state.element, spans, candidate.text)
       ? "native-mask"
-      : shouldUseEditableSingleLineBarMask(state.element, spans)
+      : shouldUseEditableSingleLineBarMask(state.element, spans, candidate.text)
         ? "single-line-bars"
         : "overlay";
 

@@ -1183,6 +1183,12 @@ function collectGoogleHighSignalInteractiveCandidates(limit = MAX_DOMAIN_PRIORIT
     "#search button",
     "#search [role='button']",
     "#search a[href]",
+    "#bres button",
+    "#bres [role='button']",
+    "#bres a[href]",
+    "#botstuff button",
+    "#botstuff [role='button']",
+    "#botstuff a[href]",
     "#rhs button",
     "#rhs [role='button']",
     "#rhs a[href]"
@@ -1241,6 +1247,12 @@ function collectGoogleSearchPriorityCandidates(limit = MAX_DOMAIN_PRIORITY_CANDI
     "#search [data-snf]",
     "#search button",
     "#search [role='button']",
+    "#bres button",
+    "#bres [role='button']",
+    "#bres a[href]",
+    "#botstuff button",
+    "#botstuff [role='button']",
+    "#botstuff a[href]",
     "#rhs button",
     "#rhs [role='button']"
   ];
@@ -3571,6 +3583,23 @@ function shouldUseBlockingBackendFallback(runReason) {
   );
 }
 
+function shouldScheduleBackgroundValidation(runReason) {
+  if (
+    runReason === "input" ||
+    runReason === "input-hot-path" ||
+    runReason === "initial-editable-pass" ||
+    runReason === "background-validation"
+  ) {
+    return false;
+  }
+
+  if (runReason === "mutation" && isRapidlyChangingRealtimeHost()) {
+    return false;
+  }
+
+  return true;
+}
+
 async function persistFailure(failure, stats) {
   const serialized = serializeFailure(failure?.reason, failure?.errorCode, failure?.retryable);
   const runtimeStats = {
@@ -4304,7 +4333,7 @@ async function executePipeline(runReason) {
 
       if (
         dirtyCandidates.length > 0 &&
-        !isBroadAnalysisReason(runReason) &&
+        shouldScheduleBackgroundValidation(runReason) &&
         !queuedReason
       ) {
         queuedReason = "background-validation";
@@ -4506,7 +4535,7 @@ async function executePipeline(runReason) {
     await persistDebug(payload, decision, stats);
 
     if (
-      !isBroadAnalysisReason(runReason) &&
+      shouldScheduleBackgroundValidation(runReason) &&
       remainingPrioritizedCandidateCount > 0 &&
       !queuedReason
     ) {
