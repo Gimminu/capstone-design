@@ -85,7 +85,8 @@ const MAX_CANDIDATES = 120;
 const MAX_FOREGROUND_CONTAINERS = 5;
 const MAX_BACKGROUND_CONTAINERS = 14;
 const VIEWPORT_BUFFER_PX = 720;
-const SCROLL_REFRESH_TEXT_NODE_LIMIT = 72;
+const SCROLL_REFRESH_TEXT_NODE_LIMIT = 96;
+const SCROLL_SETTLE_REFRESH_DELAY_MS = 110;
 const MAX_ANALYSIS_CONTEXT_LENGTH = 360;
 const MAX_RECONCILE_CONTEXT_LENGTH = 560;
 const MIN_ANALYSIS_CONTEXT_LENGTH = 24;
@@ -112,7 +113,7 @@ const STARTUP_FOLLOWUP_DELAYS_MS = [48, 180, 420, 900];
 const ROUTE_CHANGE_FOLLOWUP_DELAYS_MS = [80, 220, 520];
 const NAVIGATION_POLL_INTERVAL_MS = 80;
 const MAX_DOMAIN_PRIORITY_CANDIDATES = 6;
-const MAX_GOOGLE_CANDIDATES_PER_CONTAINER = 12;
+const MAX_GOOGLE_CANDIDATES_PER_CONTAINER = 16;
 const MAX_SELF_TEST_CASES = 32;
 const MAX_SELF_TEST_HISTORY = 20;
 const FOREGROUND_ANALYZE_TIMEOUT_MS = 900;
@@ -195,6 +196,7 @@ let immediateInputTimerId = null;
 let overlaySyncFrameId = null;
 let pendingEditableOverlaySyncFrames = 0;
 let scrollVisibilityRefreshFrameId = null;
+let scrollVisibilityRefreshSettleTimerId = null;
 let suppressedMutationRefreshTimerId = null;
 let reconcileFlushTimerId = null;
 let scheduledReconcileDelayMs = 0;
@@ -285,6 +287,14 @@ function teardownInvalidatedExtensionContext() {
   if (overlaySyncFrameId) {
     window.cancelAnimationFrame(overlaySyncFrameId);
     overlaySyncFrameId = null;
+  }
+  if (scrollVisibilityRefreshFrameId) {
+    window.cancelAnimationFrame(scrollVisibilityRefreshFrameId);
+    scrollVisibilityRefreshFrameId = null;
+  }
+  if (scrollVisibilityRefreshSettleTimerId) {
+    window.clearTimeout(scrollVisibilityRefreshSettleTimerId);
+    scrollVisibilityRefreshSettleTimerId = null;
   }
   if (bootstrapRetryTimerId) {
     window.clearTimeout(bootstrapRetryTimerId);
@@ -766,7 +776,7 @@ function getGoogleSearchAnalysisContainer(element) {
 
   return (
     element.closest(
-      "#search .MjjYud, #search .g, #search .tF2Cxc, #search .yuRUbf, #search .ULSxyf, #rhs [data-attrid], #rhs .kp-wholepage, #rhs"
+      "#search .MjjYud, #search .g, #search .tF2Cxc, #search .yuRUbf, #search .ULSxyf, #botstuff, #bres, g-section-with-header, #rhs [data-attrid], #rhs .kp-wholepage, #rhs"
     ) ||
     null
   );
@@ -790,6 +800,10 @@ function getGoogleVisibleAnalysisContainers(limit = MAX_HOT_PATH_CONTAINERS) {
     "#search .g",
     "#search .tF2Cxc",
     "#search .ULSxyf",
+    "#botstuff",
+    "#bres",
+    "g-section-with-header",
+    "main [role='button']",
     "#rhs [data-attrid]",
     "#rhs .kp-wholepage",
     "#rhs"
@@ -5015,7 +5029,7 @@ function refreshVisibleCandidateRegistrations() {
   });
 }
 
-function scheduleScrollVisibilityRefresh() {
+function runScrollVisibilityRefresh() {
   if (scrollVisibilityRefreshFrameId) {
     return;
   }
@@ -5031,6 +5045,23 @@ function scheduleScrollVisibilityRefresh() {
       schedulePipeline("visibility");
     }
   });
+}
+
+function scheduleScrollVisibilityRefresh(options = {}) {
+  runScrollVisibilityRefresh();
+
+  if (options.withSettleRefresh === false) {
+    return;
+  }
+
+  if (scrollVisibilityRefreshSettleTimerId) {
+    window.clearTimeout(scrollVisibilityRefreshSettleTimerId);
+  }
+
+  scrollVisibilityRefreshSettleTimerId = window.setTimeout(() => {
+    scrollVisibilityRefreshSettleTimerId = null;
+    runScrollVisibilityRefresh();
+  }, SCROLL_SETTLE_REFRESH_DELAY_MS);
 }
 
 function scheduleSuppressedMutationRefresh() {
