@@ -96,6 +96,23 @@ function renderEditableNativeMask(state, tooltip, settings) {
   MASKED_EDITABLE_STATE_IDS.add(state.nodeId);
 }
 
+function concealEditableSourceText(state) {
+  if (!state?.element) return;
+
+  const computedStyle = window.getComputedStyle(state.element);
+  const caretColor = computedStyle.caretColor && computedStyle.caretColor !== "auto"
+    ? computedStyle.caretColor
+    : computedStyle.color;
+  state.element.style.webkitTextSecurity = state.originalWebkitTextSecurity || "";
+  state.element.style.textSecurity = state.originalTextSecurity || "";
+  state.element.style.setProperty("color", "transparent", "important");
+  state.element.style.setProperty("-webkit-text-fill-color", "transparent", "important");
+  state.element.style.setProperty("caret-color", caretColor, "important");
+  state.element.style.setProperty("text-shadow", "none", "important");
+  state.element.classList.add("shieldtext-editable-source-concealed");
+  state.nativeMaskApplied = false;
+}
+
 function getEditableOverlayHost(element) {
   // Fixed overlays are more stable for search inputs/combobox textareas whose
   // parent layout can move independently during browser or SPA UI transitions.
@@ -166,6 +183,9 @@ function syncEditableOverlayLayout(state) {
   if (!isElementVisible(element) || !isElementNearViewport(rect)) {
     state.overlayRoot.style.display = "none";
     return;
+  }
+  if (state.overlayMode === "full-overlay") {
+    concealEditableSourceText(state);
   }
 
   const style = window.getComputedStyle(element);
@@ -271,18 +291,7 @@ function renderEditableOverlay(state, text, spans, settings, tooltip) {
 
   if (!state.overlayContent) return;
 
-  state.element.style.webkitTextSecurity = state.originalWebkitTextSecurity || "";
-  state.element.style.textSecurity = state.originalTextSecurity || "";
-  const computedStyle = window.getComputedStyle(state.element);
-  const caretColor = computedStyle.caretColor && computedStyle.caretColor !== "auto"
-    ? computedStyle.caretColor
-    : computedStyle.color;
-  state.element.style.setProperty("color", "transparent", "important");
-  state.element.style.setProperty("-webkit-text-fill-color", "transparent", "important");
-  state.element.style.setProperty("caret-color", caretColor, "important");
-  state.element.style.setProperty("text-shadow", "none", "important");
-  state.element.classList.add("shieldtext-editable-source-concealed");
-  state.nativeMaskApplied = false;
+  concealEditableSourceText(state);
 
   const renderKey = JSON.stringify({
     text,
