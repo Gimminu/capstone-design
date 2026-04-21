@@ -672,6 +672,13 @@ function isLikelyChungmaruTooltipTitle(value) {
   return /(?:공격|모욕|혐오|스팸|유해|콘텐츠|\d{1,3}%)/.test(text);
 }
 
+function clearLikelyChungmaruTooltipTitle(element) {
+  if (!(element instanceof Element)) return;
+  if (isLikelyChungmaruTooltipTitle(element.getAttribute("title"))) {
+    element.removeAttribute("title");
+  }
+}
+
 function getEditableValueId(element) {
   let nodeId = EDITABLE_VALUE_ID_MAP.get(element);
   if (!nodeId) {
@@ -682,6 +689,7 @@ function getEditableValueId(element) {
 }
 
 function getEditableValueState(element) {
+  clearLikelyChungmaruTooltipTitle(element);
   const nodeId = getEditableValueId(element);
   let state = EDITABLE_VALUE_STATE_BY_ID.get(nodeId);
 
