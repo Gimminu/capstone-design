@@ -131,16 +131,8 @@ function renderEditableNativeMask(state, tooltip, settings) {
 }
 
 function getEditableOverlayHost(element) {
-  if (element instanceof HTMLElement) {
-    if (element.offsetParent instanceof HTMLElement) {
-      return element.offsetParent;
-    }
-
-    if (element.parentElement instanceof HTMLElement) {
-      return element.parentElement;
-    }
-  }
-
+  // Fixed overlays are more stable for search inputs/combobox textareas whose
+  // parent layout can move independently during browser or SPA UI transitions.
   return document.body || document.documentElement;
 }
 
@@ -548,6 +540,7 @@ function getEditableMaskedCoverage(spans, text) {
 
 function shouldUseEditableNativeMask(element, spans, text) {
   return (
+    element instanceof HTMLInputElement &&
     isSingleLineEditableElement(element) &&
     doSpansCoverFullText(spans, text)
   );
