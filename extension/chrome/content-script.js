@@ -5262,13 +5262,7 @@ function scheduleStartupFollowupPipelines() {
   for (const delayMs of STARTUP_FOLLOWUP_DELAYS_MS) {
     window.setTimeout(() => {
       if (extensionContextInvalidated || isUnsupportedPage()) return;
-      const registeredCount = isGoogleSearchPage()
-        ? refreshVisibleCandidateRegistrations({ markDirty: false })
-        : registerTextNodesInTree(document.body, {
-            markDirty: false,
-            onlyVisible: true,
-            limit: MAX_INITIAL_TEXT_NODES
-          });
+      const registeredCount = refreshVisibleCandidateRegistrations({ markDirty: false });
       if (registeredCount > 0) {
         schedulePipeline("visibility");
       }
@@ -5348,13 +5342,7 @@ function refreshCurrentRouteCandidates(options = {}) {
 
   cleanupDisconnectedStates();
   const markDirty = options.markDirty === true;
-  const registeredCount = isGoogleSearchPage()
-    ? refreshVisibleCandidateRegistrations({ markDirty })
-    : registerTextNodesInTree(document.body, {
-        markDirty,
-        onlyVisible: true,
-        limit: MAX_INITIAL_TEXT_NODES
-      });
+  const registeredCount = refreshVisibleCandidateRegistrations({ markDirty });
   scheduleInitialEditablePass();
   if (options.scheduleStartupFollowups !== false) {
     scheduleStartupFollowupPipelines();
