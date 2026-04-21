@@ -483,7 +483,7 @@ function getAnalyzeBatchRequestTimeoutMs(requestTimeoutMs, mode = "foreground") 
     return Math.max(8000, requestTimeoutMs);
   }
 
-  return Math.max(650, requestTimeoutMs);
+  return Math.max(1200, requestTimeoutMs);
 }
 
 async function performAnalyzeBatchRequestWithSplits(
