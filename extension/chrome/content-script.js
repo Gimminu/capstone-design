@@ -112,6 +112,14 @@ const INITIAL_EDITABLE_PASS_LIMIT = 2;
 const STARTUP_FOLLOWUP_DELAYS_MS = [48, 180, 420, 900];
 const ROUTE_CHANGE_FOLLOWUP_DELAYS_MS = [80, 220, 520, 1100, 1800];
 const NAVIGATION_POLL_INTERVAL_MS = 80;
+const SAME_ROUTE_DIRTY_REFRESH_REASONS = new Set([
+  "load",
+  "pageshow",
+  "readystatechange",
+  "turbo-load",
+  "yt-navigate-finish",
+  "yt-page-data-updated"
+]);
 const MAX_DOMAIN_PRIORITY_CANDIDATES = 6;
 const MAX_GOOGLE_CANDIDATES_PER_CONTAINER = 16;
 const MAX_SELF_TEST_CASES = 32;
@@ -5191,14 +5199,9 @@ function scheduleRouteRefresh(reason = "route-change") {
   }
 
   const currentHref = String(location.href || "");
+  const normalizedReason = String(reason || "");
   const isActualRouteChange = currentHref !== lastObservedLocationHref;
-  const allowSameRouteRefresh = [
-    "pageshow",
-    "load",
-    "readystatechange",
-    "turbo-load",
-    "yt-navigate-finish"
-  ].includes(String(reason || ""));
+  const allowSameRouteRefresh = SAME_ROUTE_DIRTY_REFRESH_REASONS.has(normalizedReason);
   if (!isActualRouteChange && !allowSameRouteRefresh) {
     return;
   }
@@ -5215,7 +5218,7 @@ function scheduleRouteRefresh(reason = "route-change") {
 
   routeRefreshFrameId = window.requestAnimationFrame(() => {
     routeRefreshFrameId = null;
-    runRouteRefreshWave(sequence, { markDirty: isActualRouteChange });
+    runRouteRefreshWave(sequence, { markDirty: isActualRouteChange || allowSameRouteRefresh });
     scheduleRouteRefreshFollowups(sequence);
   });
 }
@@ -5260,6 +5263,8 @@ function initializeNavigationListeners() {
     true
   );
   document.addEventListener("turbo:load", () => scheduleRouteRefresh("turbo-load"), true);
+  document.addEventListener("yt-page-data-updated", () => scheduleRouteRefresh("yt-page-data-updated"), true);
+  document.addEventListener("yt-navigate-start", () => scheduleRouteRefresh("yt-navigate-start"), true);
   document.addEventListener("yt-navigate-finish", () => scheduleRouteRefresh("yt-navigate-finish"), true);
   try {
     if (window.navigation?.addEventListener) {
