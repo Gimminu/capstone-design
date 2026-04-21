@@ -458,6 +458,8 @@ function invalidateAnalysisForSettingsChange() {
     state.lastAppliedFingerprint = "";
     state.lastAppliedStage = "";
     state.lastReconcileFingerprint = "";
+    state.lastQueuedReconcileFingerprint = "";
+    state.reconcileInFlightFingerprint = "";
     if (state.nodeId) {
       DIRTY_NODE_IDS.add(state.nodeId);
     }
@@ -470,6 +472,8 @@ function invalidateAnalysisForSettingsChange() {
     state.lastAppliedFingerprint = "";
     state.lastAppliedStage = "";
     state.lastReconcileFingerprint = "";
+    state.lastQueuedReconcileFingerprint = "";
+    state.reconcileInFlightFingerprint = "";
     if (state.nodeId) {
       DIRTY_NODE_IDS.add(state.nodeId);
     }
@@ -679,6 +683,8 @@ function getEditableValueState(element) {
       lastAppliedStage: "",
       lastAppliedBlocked: false,
       lastReconcileFingerprint: "",
+      lastQueuedReconcileFingerprint: "",
+      reconcileInFlightFingerprint: "",
       analysisGeneration: 0,
       isMasked: false,
       isPending: false,
@@ -730,6 +736,8 @@ function getNodeState(textNode) {
       lastAppliedStage: "",
       lastAppliedBlocked: false,
       lastReconcileFingerprint: "",
+      lastQueuedReconcileFingerprint: "",
+      reconcileInFlightFingerprint: "",
       analysisGeneration: 0,
       isMasked: false,
       isPending: false,
@@ -895,6 +903,19 @@ function buildFingerprint(text) {
   return normalizeText(text);
 }
 
+function doesRegisteredStateNeedAnalysis(state, options = {}) {
+  if (!state?.nodeId) {
+    return false;
+  }
+
+  if (options.markDirty === true || DIRTY_NODE_IDS.has(state.nodeId)) {
+    return true;
+  }
+
+  const currentFingerprint = buildFingerprint(normalizeText(getSourceText(state)));
+  return !state.hasProcessed || String(state.lastFingerprint || "") !== String(currentFingerprint || "");
+}
+
 function unlinkObservedElement(state) {
   if (!state?.observedElement) return;
 
@@ -968,22 +989,26 @@ function registerTextNode(textNode, options = {}) {
 function registerTextNodesInTree(root, options = {}) {
   const limit = Number.isFinite(options.limit) ? options.limit : Number.POSITIVE_INFINITY;
   const onlyVisible = Boolean(options.onlyVisible);
-  let registeredCount = 0;
+  let visitedCount = 0;
+  let actionableCount = 0;
 
   function registerAndCount(textNode) {
-    if (registeredCount >= limit) return;
-    if (registerTextNode(textNode, options)) {
-      registeredCount += 1;
+    if (visitedCount >= limit) return;
+    visitedCount += 1;
+
+    const state = registerTextNode(textNode, options);
+    if (doesRegisteredStateNeedAnalysis(state, options)) {
+      actionableCount += 1;
     }
   }
 
   if (root instanceof Text) {
     registerAndCount(root);
-    return registeredCount;
+    return actionableCount;
   }
 
   if (!(root instanceof Element) && !(root instanceof DocumentFragment) && root !== document.body) {
-    return registeredCount;
+    return actionableCount;
   }
 
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
@@ -1004,11 +1029,11 @@ function registerTextNodesInTree(root, options = {}) {
   });
 
   while (walker.nextNode()) {
-    if (registeredCount >= limit) break;
+    if (visitedCount >= limit) break;
     registerAndCount(walker.currentNode);
   }
 
-  return registeredCount;
+  return actionableCount;
 }
 
 function cleanupDisconnectedStates() {
@@ -2109,6 +2134,8 @@ function markCandidateApplied(candidate, stage, blocked) {
 
   if (String(stage || "") === "reconcile") {
     candidate.state.lastReconcileFingerprint = String(candidate.fingerprint || "");
+    candidate.state.lastQueuedReconcileFingerprint = "";
+    candidate.state.reconcileInFlightFingerprint = "";
   }
 }
 
@@ -3849,6 +3876,68 @@ function getQueuedCandidateKey(candidate) {
   return `${candidate.nodeId}::${candidate.fingerprint}`;
 }
 
+function getCandidateFingerprint(candidate) {
+  return String(candidate?.fingerprint || "");
+}
+
+function isReconcileAlreadyResolvedOrRunning(candidate) {
+  const state = candidate?.state;
+  const fingerprint = getCandidateFingerprint(candidate);
+  if (!state || !fingerprint) {
+    return true;
+  }
+
+  return (
+    String(state.lastReconcileFingerprint || "") === fingerprint ||
+    String(state.reconcileInFlightFingerprint || "") === fingerprint ||
+    String(state.lastQueuedReconcileFingerprint || "") === fingerprint
+  );
+}
+
+function isReconcileResolvedOrInFlight(candidate) {
+  const state = candidate?.state;
+  const fingerprint = getCandidateFingerprint(candidate);
+  if (!state || !fingerprint) {
+    return true;
+  }
+
+  return (
+    String(state.lastReconcileFingerprint || "") === fingerprint ||
+    String(state.reconcileInFlightFingerprint || "") === fingerprint
+  );
+}
+
+function markReconcileQueued(candidate) {
+  const fingerprint = getCandidateFingerprint(candidate);
+  if (candidate?.state && fingerprint) {
+    candidate.state.lastQueuedReconcileFingerprint = fingerprint;
+  }
+}
+
+function clearReconcileQueued(candidate) {
+  if (candidate?.state) {
+    candidate.state.lastQueuedReconcileFingerprint = "";
+  }
+}
+
+function markReconcileInFlight(candidates) {
+  for (const candidate of candidates || []) {
+    const fingerprint = getCandidateFingerprint(candidate);
+    if (candidate?.state && fingerprint) {
+      candidate.state.reconcileInFlightFingerprint = fingerprint;
+      candidate.state.lastQueuedReconcileFingerprint = "";
+    }
+  }
+}
+
+function clearReconcileInFlight(candidates) {
+  for (const candidate of candidates || []) {
+    if (candidate?.state) {
+      candidate.state.reconcileInFlightFingerprint = "";
+    }
+  }
+}
+
 function scheduleReconcileFlush(delayMs = RECONCILE_FLUSH_DELAY_MS) {
   const normalizedDelay = Math.max(0, Number(delayMs || RECONCILE_FLUSH_DELAY_MS));
   if (reconcileFlushTimerId && scheduledReconcileDelayMs > 0 && scheduledReconcileDelayMs <= normalizedDelay) {
@@ -3871,7 +3960,16 @@ function scheduleReconcileFlush(delayMs = RECONCILE_FLUSH_DELAY_MS) {
 
 function enqueueReconcileCandidates(candidates, pipelineSequence, context, options = {}) {
   for (const candidate of candidates) {
+    if (isReconcileAlreadyResolvedOrRunning(candidate)) {
+      continue;
+    }
+
     const queueKey = getQueuedCandidateKey(candidate);
+    if (RECONCILE_QUEUE.has(queueKey)) {
+      continue;
+    }
+
+    markReconcileQueued(candidate);
     RECONCILE_QUEUE.set(queueKey, {
       candidate,
       context,
@@ -3900,6 +3998,7 @@ async function flushReconcileQueue() {
     const entries = [...RECONCILE_QUEUE.values()].slice(0, RECONCILE_CHUNK_SIZE);
     for (const entry of entries) {
       RECONCILE_QUEUE.delete(getQueuedCandidateKey(entry.candidate));
+      clearReconcileQueued(entry.candidate);
     }
 
     const settings = await loadSettings();
@@ -3907,7 +4006,11 @@ async function flushReconcileQueue() {
     const analysisGeneration = Number(latestEntry?.context?.analysisGeneration || 0);
     const candidates = entries
       .map((entry) => entry.candidate)
-      .filter((candidate) => isCandidateGenerationCurrent(candidate, analysisGeneration));
+      .filter(
+        (candidate) =>
+          isCandidateGenerationCurrent(candidate, analysisGeneration) &&
+          !isReconcileResolvedOrInFlight(candidate)
+      );
 
     if (candidates.length === 0) {
       return;
@@ -3917,6 +4020,7 @@ async function flushReconcileQueue() {
     if (units.length === 0) {
       return;
     }
+    markReconcileInFlight(candidates);
 
     await reconcileAnalysisUnitsWithBackend(
       units,
@@ -4009,7 +4113,7 @@ function collectBackendReconcileCandidates(candidates, foregroundCandidates) {
     if (!candidate || candidate.candidateKind === "editable-value") {
       continue;
     }
-    if (candidate.state?.lastReconcileFingerprint === candidate.fingerprint) {
+    if (isReconcileAlreadyResolvedOrRunning(candidate)) {
       continue;
     }
 
@@ -4081,12 +4185,6 @@ async function executeHotPathForCandidates(candidates, runReason) {
   const hostname = location.hostname || "unknown";
 
   if (!hotPathMeta.ok) {
-    enqueueReconcileCandidates(currentCandidates, pipelineSequence, {
-      hostname,
-      runReason,
-      startedAt,
-      analysisGeneration
-    });
     return {
       ok: false,
       errorCode: hotPathMeta.error?.errorCode,
@@ -4247,9 +4345,9 @@ async function reconcileAnalysisUnitsWithBackend(
   startedAt,
   analysisGeneration
 ) {
+  const unitCandidates = collectUnitCandidates(analysisUnits);
   try {
     const reconcileStartedAt = performance.now();
-    const unitCandidates = collectUnitCandidates(analysisUnits);
     const fullMeta = await analyzePayloadWithBackend(
       analysisUnits,
       null,
@@ -4356,6 +4454,8 @@ async function reconcileAnalysisUnitsWithBackend(
       },
       pipelineSequence
     );
+  } finally {
+    clearReconcileInFlight(unitCandidates);
   }
 }
 
@@ -4831,9 +4931,9 @@ function scheduleStartupFollowupPipelines() {
     window.setTimeout(() => {
       if (extensionContextInvalidated || isUnsupportedPage()) return;
       const registeredCount = isGoogleSearchPage()
-        ? refreshVisibleCandidateRegistrations({ markDirty: true })
+        ? refreshVisibleCandidateRegistrations({ markDirty: false })
         : registerTextNodesInTree(document.body, {
-            markDirty: true,
+            markDirty: false,
             onlyVisible: true,
             limit: MAX_INITIAL_TEXT_NODES
           });
@@ -4851,12 +4951,23 @@ function invalidatePendingAnalysisForNavigation() {
   for (const state of NODE_STATE_BY_ID.values()) {
     state.analysisGeneration = latestAnalysisGeneration;
     state.lastAppliedStage = "";
+    state.lastQueuedReconcileFingerprint = "";
+    state.reconcileInFlightFingerprint = "";
   }
 
   for (const state of EDITABLE_VALUE_STATE_BY_ID.values()) {
     state.analysisGeneration = latestAnalysisGeneration;
     state.lastAppliedStage = "";
+    state.lastQueuedReconcileFingerprint = "";
+    state.reconcileInFlightFingerprint = "";
   }
+
+  RECONCILE_QUEUE.clear();
+  if (reconcileFlushTimerId) {
+    window.clearTimeout(reconcileFlushTimerId);
+    reconcileFlushTimerId = null;
+  }
+  scheduledReconcileDelayMs = 0;
 }
 
 function refreshCurrentRouteCandidates(options = {}) {
@@ -4865,10 +4976,11 @@ function refreshCurrentRouteCandidates(options = {}) {
   }
 
   cleanupDisconnectedStates();
+  const markDirty = options.markDirty === true;
   const registeredCount = isGoogleSearchPage()
-    ? refreshVisibleCandidateRegistrations({ markDirty: true })
+    ? refreshVisibleCandidateRegistrations({ markDirty })
     : registerTextNodesInTree(document.body, {
-        markDirty: true,
+        markDirty,
         onlyVisible: true,
         limit: MAX_INITIAL_TEXT_NODES
       });
@@ -4879,13 +4991,14 @@ function refreshCurrentRouteCandidates(options = {}) {
   return registeredCount;
 }
 
-function runRouteRefreshWave(sequence) {
+function runRouteRefreshWave(sequence, options = {}) {
   if (sequence !== routeRefreshSequence) {
     return;
   }
 
   const registeredCount = refreshCurrentRouteCandidates({
-    scheduleStartupFollowups: false
+    scheduleStartupFollowups: false,
+    markDirty: options.markDirty === true
   });
   if (registeredCount > 0) {
     schedulePipeline("route-change");
@@ -4907,7 +5020,7 @@ function scheduleRouteRefreshFollowups(sequence) {
   for (const delayMs of ROUTE_CHANGE_FOLLOWUP_DELAYS_MS) {
     const timeoutId = window.setTimeout(() => {
       ROUTE_REFRESH_TIMEOUT_IDS.delete(timeoutId);
-      runRouteRefreshWave(sequence);
+      runRouteRefreshWave(sequence, { markDirty: false });
     }, delayMs);
     ROUTE_REFRESH_TIMEOUT_IDS.add(timeoutId);
   }
@@ -4943,7 +5056,7 @@ function scheduleRouteRefresh(reason = "route-change") {
 
   routeRefreshFrameId = window.requestAnimationFrame(() => {
     routeRefreshFrameId = null;
-    runRouteRefreshWave(sequence);
+    runRouteRefreshWave(sequence, { markDirty: isActualRouteChange });
     scheduleRouteRefreshFollowups(sequence);
   });
 }
