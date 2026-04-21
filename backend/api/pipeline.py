@@ -571,6 +571,8 @@ class ProfanityPipeline:
             ):
                 return True
             return False
+        if re.search(r"\s", compact_span) and not _has_dictionary_signal(compact_span):
+            return True
         if _is_browser_ui_safe_label(compact_span):
             return True
         if _looks_like_ascii_ui_text(original_text) and _looks_like_ascii_ui_text(compact_span):

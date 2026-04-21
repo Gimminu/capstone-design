@@ -2817,16 +2817,36 @@ function getBackendRequestBatchSize(analysisMode) {
   return FOREGROUND_BACKEND_BATCH_SIZE;
 }
 
+function isRenderableEvidenceSpan(spanText) {
+  const text = normalizeText(spanText);
+  if (!text) return false;
+
+  if (/\s/.test(text) && !HIGH_SIGNAL_PROFANITY_PATTERN.test(text)) {
+    return false;
+  }
+
+  return true;
+}
+
 function normalizeEvidenceSpans(spans, originalText) {
   const sourceText = String(originalText || "");
   const nextSpans = (Array.isArray(spans) ? spans : [])
-    .map((span) => ({
-      start: Math.max(0, Number(span?.start ?? 0)),
-      end: Math.min(sourceText.length, Number(span?.end ?? 0)),
-      score: Number(span?.score ?? 0),
-      text: String(span?.text || "")
-    }))
-    .filter((span) => Number.isFinite(span.start) && Number.isFinite(span.end) && span.end > span.start)
+    .map((span) => {
+      const start = Math.max(0, Number(span?.start ?? 0));
+      const end = Math.min(sourceText.length, Number(span?.end ?? 0));
+      return {
+        start,
+        end,
+        score: Number(span?.score ?? 0),
+        text: sourceText.slice(start, end)
+      };
+    })
+    .filter((span) => (
+      Number.isFinite(span.start) &&
+      Number.isFinite(span.end) &&
+      span.end > span.start &&
+      isRenderableEvidenceSpan(span.text)
+    ))
     .sort((left, right) => left.start - right.start || left.end - right.end);
 
   const merged = [];

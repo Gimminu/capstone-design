@@ -144,6 +144,12 @@ class FakeClassifier:
                 "is_hate": False,
                 "scores": {"profanity": 0.97, "toxicity": 0.98, "hate": 0.02},
             },
+            "악마 ㄴ 누 한 양아치 앞날은 뻔하다": {
+                "is_profane": True,
+                "is_toxic": True,
+                "is_hate": False,
+                "scores": {"profanity": 0.91, "toxicity": 0.92, "hate": 0.01},
+            },
         }
 
     def predict(self, text, threshold=0.5):
@@ -173,6 +179,11 @@ class FakeSpanDetector:
             return [{"text": "script", "start": 12, "end": 18, "score": 0.89}]
         if text == "dotdev/themes: Custom themes repository for Warp":
             return [{"text": "for War", "start": 40, "end": 47, "score": 0.89}]
+        if text == "악마 ㄴ 누 한 양아치 앞날은 뻔하다":
+            return [
+                {"text": "악마 ㄴ 누", "start": 0, "end": 6, "score": 0.89},
+                {"text": "양아치", "start": 9, "end": 12, "score": 0.95},
+            ]
         return []
 
 
@@ -352,6 +363,15 @@ class PipelineContextTests(unittest.TestCase):
 
         self.assertFalse(result["is_offensive"])
         self.assertEqual(result["evidence_spans"], [])
+
+    def test_multiword_model_span_without_dictionary_signal_is_rejected(self):
+        pipeline = self.make_pipeline()
+
+        result = pipeline.analyze("악마 ㄴ 누 한 양아치 앞날은 뻔하다")
+
+        self.assertTrue(result["is_offensive"])
+        self.assertNotIn("악마 ㄴ 누", [span["text"] for span in result["evidence_spans"]])
+        self.assertEqual([span["text"] for span in result["evidence_spans"]], ["양아치"])
 
 
 if __name__ == "__main__":
