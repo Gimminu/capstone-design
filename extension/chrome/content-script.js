@@ -3225,6 +3225,10 @@ function buildDecisionFromBackend(analysisUnits, analysisResults, settings, back
 
   analysisUnits.forEach((unit, index) => {
     const analysis = Array.isArray(analysisResults) ? analysisResults[index] : null;
+    if (!analysis || analysis.__shieldtextSkipped === true) {
+      return;
+    }
+
     returnedSpanCount += normalizeEvidenceSpans(
       Array.isArray(analysis?.evidence_spans) ? analysis.evidence_spans : [],
       unit?.text || ""
@@ -3414,6 +3418,13 @@ function applyDecision(candidates, decision, settings, options = {}) {
   const stage = String(options.stage || "foreground");
   for (const candidate of candidates) {
     const state = candidate.state;
+    const hasOutcome = Object.prototype.hasOwnProperty.call(
+      decision.nodeOutcomeMap || {},
+      candidate.nodeId
+    );
+    if (!hasOutcome) {
+      continue;
+    }
     const outcome = decision.nodeOutcomeMap?.[candidate.nodeId];
     if (!state) continue;
     if (expectedGeneration > 0 && Number(state.analysisGeneration || 0) !== expectedGeneration) {
