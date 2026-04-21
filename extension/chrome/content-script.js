@@ -988,13 +988,26 @@ function registerTextNodesInTree(root, options = {}) {
   const limit = Number.isFinite(options.limit) ? options.limit : Number.POSITIVE_INFINITY;
   const onlyVisible = Boolean(options.onlyVisible);
   let visitedCount = 0;
+  let usefulCount = 0;
   let actionableCount = 0;
+  const maxVisited = Number.isFinite(limit)
+    ? Math.max(limit + 24, limit * 4)
+    : Number.POSITIVE_INFINITY;
 
   function registerAndCount(textNode) {
-    if (visitedCount >= limit) return;
+    if (usefulCount >= limit || visitedCount >= maxVisited) return;
     visitedCount += 1;
 
     const state = registerTextNode(textNode, options);
+    if (!state) return;
+
+    const element = getRenderableParent(state.textNode);
+    const normalizedText = normalizeText(getSourceText(state));
+    if (!isCandidateTextUseful(normalizedText, element)) {
+      return;
+    }
+
+    usefulCount += 1;
     if (doesRegisteredStateNeedAnalysis(state, options)) {
       actionableCount += 1;
     }
@@ -1027,7 +1040,7 @@ function registerTextNodesInTree(root, options = {}) {
   });
 
   while (walker.nextNode()) {
-    if (visitedCount >= limit) break;
+    if (usefulCount >= limit || visitedCount >= maxVisited) break;
     registerAndCount(walker.currentNode);
   }
 
