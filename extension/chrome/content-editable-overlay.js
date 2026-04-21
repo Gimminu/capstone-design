@@ -550,14 +550,23 @@ function shouldUseEditableSingleLineBarMask(element, spans, text) {
   const sourceText = String(text || "");
   const compactLength = sourceText.replace(/\s+/g, "").length;
   const maskedCoverage = getEditableMaskedCoverage(spans, sourceText);
+  const fullTextComboboxTextarea =
+    element instanceof HTMLTextAreaElement &&
+    String(element.getAttribute("role") || "").toLowerCase() === "combobox" &&
+    doSpansCoverFullText(spans, sourceText);
 
   return (
     isSingleLineEditableElement(element) &&
     Array.isArray(spans) &&
     spans.length > 0 &&
-    !doSpansCoverFullText(spans, sourceText) &&
-    compactLength >= 6 &&
-    maskedCoverage < 0.6
+    (
+      fullTextComboboxTextarea ||
+      (
+        !doSpansCoverFullText(spans, sourceText) &&
+        compactLength >= 6 &&
+        maskedCoverage < 0.6
+      )
+    )
   );
 }
 

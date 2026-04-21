@@ -108,9 +108,9 @@ const MAX_FOREGROUND_WAVE_CONTAINERS = 3;
 const MAX_BACKGROUND_CANDIDATES = 16;
 const MAX_HOT_PATH_CONTAINERS = 6;
 const INITIAL_EDITABLE_PASS_LIMIT = 2;
-const STARTUP_FOLLOWUP_DELAYS_MS = [48];
+const STARTUP_FOLLOWUP_DELAYS_MS = [48, 180, 420, 900];
 const ROUTE_CHANGE_FOLLOWUP_DELAYS_MS = [80, 220, 520];
-const NAVIGATION_POLL_INTERVAL_MS = 120;
+const NAVIGATION_POLL_INTERVAL_MS = 80;
 const MAX_DOMAIN_PRIORITY_CANDIDATES = 6;
 const MAX_GOOGLE_CANDIDATES_PER_CONTAINER = 12;
 const MAX_SELF_TEST_CASES = 32;
@@ -4848,7 +4848,14 @@ function scheduleRouteRefresh(reason = "route-change") {
 
   const currentHref = String(location.href || "");
   const isActualRouteChange = currentHref !== lastObservedLocationHref;
-  if (!isActualRouteChange && reason !== "pageshow") {
+  const allowSameRouteRefresh = [
+    "pageshow",
+    "load",
+    "readystatechange",
+    "turbo-load",
+    "yt-navigate-finish"
+  ].includes(String(reason || ""));
+  if (!isActualRouteChange && !allowSameRouteRefresh) {
     return;
   }
 
@@ -4898,6 +4905,18 @@ function initializeNavigationListeners() {
   window.addEventListener("popstate", () => scheduleRouteRefresh("popstate"), true);
   window.addEventListener("hashchange", () => scheduleRouteRefresh("hashchange"), true);
   window.addEventListener("pageshow", () => scheduleRouteRefresh("pageshow"), true);
+  window.addEventListener("load", () => scheduleRouteRefresh("load"), true);
+  document.addEventListener(
+    "readystatechange",
+    () => {
+      if (document.readyState === "interactive" || document.readyState === "complete") {
+        scheduleRouteRefresh("readystatechange");
+      }
+    },
+    true
+  );
+  document.addEventListener("turbo:load", () => scheduleRouteRefresh("turbo-load"), true);
+  document.addEventListener("yt-navigate-finish", () => scheduleRouteRefresh("yt-navigate-finish"), true);
   try {
     if (window.navigation?.addEventListener) {
       window.navigation.addEventListener(
