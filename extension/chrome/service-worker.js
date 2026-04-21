@@ -892,6 +892,39 @@ async function analyzeTextBatch(message) {
   } catch (error) {
     const normalized = normalizeBackendError(error, "ANALYZE_BATCH_FAILED");
     const analysisDiagnostics = error?.analysisDiagnostics || null;
+    const canDegradeWithoutFailing =
+      normalized.retryable &&
+      (
+        analysisMode === "foreground" ||
+        analysisMode === "background-validation" ||
+        analysisMode === "reconcile"
+      );
+
+    if (canDegradeWithoutFailing) {
+      return {
+        ok: true,
+        apiBaseUrl,
+        durationMs: Date.now() - startedAt,
+        backendStatus: "degraded",
+        analysisMode,
+        requestedCount: texts.length,
+        cacheHitCount: 0,
+        inFlightHitCount: 0,
+        requestCount: Math.max(1, Number(analysisDiagnostics?.requestTimings?.length || 0)),
+        splitRetryCount: 0,
+        chunkSize: Number(analysisDiagnostics?.chunkSize || texts.length),
+        skippedChunkCount: 1,
+        failedTextCount: Number(analysisDiagnostics?.failedTextCount || texts.length),
+        lastBackendErrorCode:
+          String(analysisDiagnostics?.lastBackendError?.errorCode || normalized.errorCode || ""),
+        requestTimeoutMs,
+        requestTimings: Array.isArray(analysisDiagnostics?.requestTimings)
+          ? analysisDiagnostics.requestTimings
+          : [],
+        results: createSkippedAnalyzeBatchResults(texts)
+      };
+    }
+
     if (analysisMode === "foreground") {
       console.error("[청마루] analyzeTextBatch failed", error);
     } else {
