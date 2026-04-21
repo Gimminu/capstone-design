@@ -38,6 +38,7 @@ const MEDIUM_ANALYZE_BATCH_CHUNK_SIZE = 4;
 const LARGE_ANALYZE_BATCH_CHUNK_SIZE = 6;
 const XL_ANALYZE_BATCH_CHUNK_SIZE = 12;
 const FULL_ANALYSIS_RESPONSE_CACHE = new Map();
+const FULL_ANALYSIS_IN_FLIGHT_REQUESTS = new Map();
 
 function normalizeAnalyzeBatchMode(value) {
   const normalized = String(value || "").trim().toLowerCase();
@@ -285,6 +286,37 @@ function getCachedResponse(cache, text, sensitivity) {
       : Date.now() + (value?.is_offensive ? OFFENSIVE_RESPONSE_CACHE_TTL_MS : SAFE_RESPONSE_CACHE_TTL_MS)
   });
   return value;
+}
+
+function getInFlightAnalysisResponse(text, sensitivity) {
+  const key = normalizeCacheKey(text, sensitivity);
+  if (!key) return null;
+  return FULL_ANALYSIS_IN_FLIGHT_REQUESTS.get(key) || null;
+}
+
+function createInFlightAnalysisEntry(text, sensitivity) {
+  const key = normalizeCacheKey(text, sensitivity);
+  let resolveEntry;
+  const promise = new Promise((resolve) => {
+    resolveEntry = resolve;
+  });
+
+  if (key) {
+    FULL_ANALYSIS_IN_FLIGHT_REQUESTS.set(key, promise);
+  }
+
+  return {
+    key,
+    promise,
+    resolve: resolveEntry
+  };
+}
+
+function clearInFlightAnalysisEntry(entry) {
+  if (!entry?.key) return;
+  if (FULL_ANALYSIS_IN_FLIGHT_REQUESTS.get(entry.key) === entry.promise) {
+    FULL_ANALYSIS_IN_FLIGHT_REQUESTS.delete(entry.key);
+  }
 }
 
 function shouldCacheAnalyzeBatchResult(value) {
@@ -738,13 +770,30 @@ async function analyzeTextBatch(message) {
     const resultsByText = new Map();
     const pendingTexts = [];
     const pendingTextSet = new Set();
+    const inFlightResultPromises = [];
     let cacheHitCount = 0;
+    let inFlightHitCount = 0;
 
     for (const text of texts) {
       const cached = getCachedResponse(FULL_ANALYSIS_RESPONSE_CACHE, text, sensitivity);
       if (cached) {
         resultsByText.set(text, cached);
         cacheHitCount += 1;
+        continue;
+      }
+
+      const inFlight = getInFlightAnalysisResponse(text, sensitivity);
+      if (inFlight) {
+        inFlightHitCount += 1;
+        inFlightResultPromises.push(
+          inFlight
+            .then((result) => {
+              resultsByText.set(text, result || null);
+            })
+            .catch(() => {
+              resultsByText.set(text, createSkippedAnalyzeBatchResults([text])[0]);
+            })
+        );
         continue;
       }
 
@@ -755,18 +804,41 @@ async function analyzeTextBatch(message) {
     }
 
     if (pendingTexts.length > 0) {
-      const batchResponse = await performAnalyzeBatchRequests(
-        apiBaseUrl,
-        pendingTexts,
-        requestTimeoutMs,
-        sensitivity,
-        analysisMode
-      );
-      batchResponse.results.forEach((result, index) => {
-        const text = pendingTexts[index];
-        resultsByText.set(text, result || null);
-        setCachedResponse(FULL_ANALYSIS_RESPONSE_CACHE, text, result || null, sensitivity);
-      });
+      const inFlightEntries = pendingTexts.map((text) => ({
+        text,
+        entry: createInFlightAnalysisEntry(text, sensitivity)
+      }));
+      let batchResponse;
+      try {
+        batchResponse = await performAnalyzeBatchRequests(
+          apiBaseUrl,
+          pendingTexts,
+          requestTimeoutMs,
+          sensitivity,
+          analysisMode
+        );
+        batchResponse.results.forEach((result, index) => {
+          const text = pendingTexts[index];
+          const value = result || null;
+          resultsByText.set(text, value);
+          setCachedResponse(FULL_ANALYSIS_RESPONSE_CACHE, text, value, sensitivity);
+          inFlightEntries[index]?.entry?.resolve(value);
+        });
+      } catch (error) {
+        const skippedResults = createSkippedAnalyzeBatchResults(pendingTexts);
+        skippedResults.forEach((result, index) => {
+          inFlightEntries[index]?.entry?.resolve(result);
+        });
+        throw error;
+      } finally {
+        for (const { entry } of inFlightEntries) {
+          clearInFlightAnalysisEntry(entry);
+        }
+      }
+
+      if (inFlightResultPromises.length > 0) {
+        await Promise.all(inFlightResultPromises);
+      }
 
       const skippedChunkCount = Number(batchResponse.skippedChunkCount || 0);
       const failedTextCount = Number(batchResponse.failedTextCount || 0);
@@ -779,6 +851,7 @@ async function analyzeTextBatch(message) {
         analysisMode,
         requestedCount: pendingTexts.length,
         cacheHitCount,
+        inFlightHitCount,
         requestCount: Number(batchResponse.requestCount || 0),
         splitRetryCount: Number(batchResponse.splitRetryCount || 0),
         chunkSize: Number(batchResponse.chunkSize || 0),
@@ -793,6 +866,10 @@ async function analyzeTextBatch(message) {
       };
     }
 
+    if (inFlightResultPromises.length > 0) {
+      await Promise.all(inFlightResultPromises);
+    }
+
     return {
       ok: true,
       apiBaseUrl,
@@ -801,6 +878,7 @@ async function analyzeTextBatch(message) {
       analysisMode,
       requestedCount: pendingTexts.length,
       cacheHitCount,
+      inFlightHitCount,
       requestCount: 0,
       splitRetryCount: 0,
       chunkSize: 0,
@@ -967,6 +1045,7 @@ async function getLastPipelineState() {
 
 chrome.runtime.onInstalled.addListener(() => {
   FULL_ANALYSIS_RESPONSE_CACHE.clear();
+  FULL_ANALYSIS_IN_FLIGHT_REQUESTS.clear();
   ensureSettings().catch((error) => {
     console.error("[청마루] ensureSettings(onInstalled) failed", error);
   });
@@ -974,6 +1053,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onStartup.addListener(() => {
   FULL_ANALYSIS_RESPONSE_CACHE.clear();
+  FULL_ANALYSIS_IN_FLIGHT_REQUESTS.clear();
   ensureSettings().catch((error) => {
     console.error("[청마루] ensureSettings(onStartup) failed", error);
   });
