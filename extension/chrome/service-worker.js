@@ -116,8 +116,12 @@ function getAnalyzeBatchChunkSize(requestTimeoutMs, textCount, mode = "foregroun
   return Math.min(XL_ANALYZE_BATCH_CHUNK_SIZE, textCount);
 }
 
-function shouldSplitAnalyzeBatchRequest(error, chunkLength) {
+function shouldSplitAnalyzeBatchRequest(error, chunkLength, mode = "foreground") {
   if (!(error instanceof BackendRequestError) || chunkLength <= 1) {
+    return false;
+  }
+
+  if (normalizeAnalyzeBatchMode(mode) === "foreground") {
     return false;
   }
 
@@ -130,7 +134,11 @@ function shouldSplitAnalyzeBatchRequest(error, chunkLength) {
 
 function shouldTolerateAnalyzeBatchChunkFailure(error, mode) {
   const normalizedMode = normalizeAnalyzeBatchMode(mode);
-  if (normalizedMode !== "background-validation" && normalizedMode !== "reconcile") {
+  if (
+    normalizedMode !== "foreground" &&
+    normalizedMode !== "background-validation" &&
+    normalizedMode !== "reconcile"
+  ) {
     return false;
   }
 
@@ -516,7 +524,7 @@ function getAnalyzeBatchRequestTimeoutMs(requestTimeoutMs, mode = "foreground") 
     return Math.max(8000, requestTimeoutMs);
   }
 
-  return Math.max(1200, requestTimeoutMs);
+  return Math.max(900, requestTimeoutMs);
 }
 
 async function performAnalyzeBatchRequestWithSplits(
@@ -561,7 +569,7 @@ async function performAnalyzeBatchRequestWithSplits(
       error
     });
 
-    if (!shouldSplitAnalyzeBatchRequest(error, texts.length)) {
+    if (!shouldSplitAnalyzeBatchRequest(error, texts.length, mode)) {
       error.requestTimings = [
         ...(Array.isArray(error.requestTimings) ? error.requestTimings : []),
         failedTiming
