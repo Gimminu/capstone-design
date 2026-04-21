@@ -134,6 +134,7 @@ const FOREGROUND_STANDALONE_SAFE_CACHE_TTL_MS = 7000;
 const FOREGROUND_CONTEXTUAL_SAFE_CACHE_TTL_MS = 800;
 const RECONCILE_CONTEXTUAL_SAFE_CACHE_TTL_MS = 600;
 const OFFENSIVE_CACHE_TTL_MS = 90000;
+const ANALYSIS_CACHE_SCHEMA_VERSION = "content-v4";
 const DECISION_STAGE_RANK = Object.freeze({
   foreground: 1,
   reconcile: 2
@@ -2784,7 +2785,7 @@ function getAnalysisCacheKey(entry) {
     entry?.cacheSensitivity ?? cachedSettings?.sensitivity ?? DEFAULT_SETTINGS.sensitivity
   );
   const textKey = normalizeText(entry?.cacheKey || entry?.text || "");
-  return `${scope}::${sensitivity}::${textKey}`;
+  return `${ANALYSIS_CACHE_SCHEMA_VERSION}::${scope}::${sensitivity}::${textKey}`;
 }
 
 function getCachedAnalysis(entry) {
