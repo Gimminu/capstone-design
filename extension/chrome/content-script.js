@@ -4859,7 +4859,7 @@ function invalidatePendingAnalysisForNavigation() {
   }
 }
 
-function refreshCurrentRouteCandidates() {
+function refreshCurrentRouteCandidates(options = {}) {
   if (extensionContextInvalidated || isUnsupportedPage() || !document.body) {
     return 0;
   }
@@ -4873,7 +4873,9 @@ function refreshCurrentRouteCandidates() {
         limit: MAX_INITIAL_TEXT_NODES
       });
   scheduleInitialEditablePass();
-  scheduleStartupFollowupPipelines();
+  if (options.scheduleStartupFollowups !== false) {
+    scheduleStartupFollowupPipelines();
+  }
   return registeredCount;
 }
 
@@ -4882,7 +4884,9 @@ function runRouteRefreshWave(sequence) {
     return;
   }
 
-  const registeredCount = refreshCurrentRouteCandidates();
+  const registeredCount = refreshCurrentRouteCandidates({
+    scheduleStartupFollowups: false
+  });
   if (registeredCount > 0) {
     schedulePipeline("route-change");
   } else {
