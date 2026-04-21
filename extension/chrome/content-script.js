@@ -4987,6 +4987,7 @@ function markDirtyFromTarget(target) {
   if (shouldSkipTextNodeParent(target)) return false;
   const registeredCount = registerTextNodesInTree(target, {
     markDirty: true,
+    onlyVisible: true,
     limit: MAX_DIRTY_TEXT_NODES_PER_MUTATION
   });
   return registeredCount > 0;
@@ -5039,16 +5040,22 @@ function initializeObserver() {
     if (!mutationList || mutationList.length === 0) return;
     if (Date.now() < ignoreMutationsUntil) return;
     let shouldSchedule = false;
+    let sawAddedContent = false;
 
     mutationList.forEach((mutation) => {
       shouldSchedule = markDirtyFromTarget(mutation.target) || shouldSchedule;
       mutation.addedNodes.forEach((node) => {
+        if (node instanceof Text || node instanceof Element || node instanceof DocumentFragment) {
+          sawAddedContent = true;
+        }
         shouldSchedule = markDirtyFromTarget(node) || shouldSchedule;
       });
     });
 
     if (shouldSchedule) {
       schedulePipeline("mutation");
+    } else if (sawAddedContent) {
+      scheduleScrollVisibilityRefresh();
     }
   });
 
