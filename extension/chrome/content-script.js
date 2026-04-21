@@ -4063,6 +4063,29 @@ function markCandidatesSettled(candidates, generation) {
   }
 }
 
+function collectSettledCandidatesFromAnalysisUnits(analysisUnits, analysisResults) {
+  const settledCandidates = [];
+  const seenNodeIds = new Set();
+
+  (Array.isArray(analysisUnits) ? analysisUnits : []).forEach((unit, index) => {
+    const result = Array.isArray(analysisResults) ? analysisResults[index] : null;
+    if (!result || result.__shieldtextSkipped === true) {
+      return;
+    }
+
+    for (const member of unit.members || []) {
+      const candidate = member?.candidate;
+      if (!candidate?.nodeId || seenNodeIds.has(candidate.nodeId)) {
+        continue;
+      }
+      seenNodeIds.add(candidate.nodeId);
+      settledCandidates.push(candidate);
+    }
+  });
+
+  return settledCandidates;
+}
+
 function getDirtyCandidates(candidates, runReason) {
   const forceRefresh =
     runReason === "initial-load" ||
@@ -4222,7 +4245,10 @@ async function executeHotPathForCandidates(candidates, runReason) {
     generation: analysisGeneration,
     stage: "foreground"
   });
-  markCandidatesSettled(unitCandidates, analysisGeneration);
+  markCandidatesSettled(
+    collectSettledCandidatesFromAnalysisUnits(analysisUnits, hotPathMeta.results),
+    analysisGeneration
+  );
 
   const firstMaskLatencyMs =
     Number(decision.maskedSpanCount || 0) > 0 ? Math.round(performance.now() - startedAt) : 0;
@@ -4399,7 +4425,10 @@ async function reconcileAnalysisUnitsWithBackend(
       generation: analysisGeneration,
       stage: "reconcile"
     });
-    markCandidatesSettled(unitCandidates, analysisGeneration);
+    markCandidatesSettled(
+      collectSettledCandidatesFromAnalysisUnits(analysisUnits, fullMeta.results),
+      analysisGeneration
+    );
 
     await persistReconcileDecision(
       payload,
@@ -4771,7 +4800,10 @@ async function executePipeline(runReason) {
       generation: analysisGeneration,
       stage: "foreground"
     });
-    markCandidatesSettled(unitCandidates, analysisGeneration);
+    markCandidatesSettled(
+      collectSettledCandidatesFromAnalysisUnits(analysisUnits, hotPathMeta.results),
+      analysisGeneration
+    );
 
     if (contextualReconcileCandidates.length > 0) {
       enqueueReconcileCandidates(
