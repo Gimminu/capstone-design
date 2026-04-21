@@ -3508,7 +3508,10 @@ function renderOutcome(state, outcome, settings) {
     mask.className = settings?.interventionMode === "hide"
       ? "shieldtext-inline-hide"
       : "shieldtext-inline-mask";
-    mask.textContent = span.text;
+    const hiddenText = document.createElement("span");
+    hiddenText.className = "shieldtext-hidden-mask-text";
+    hiddenText.textContent = span.text;
+    mask.appendChild(hiddenText);
     renderBox.appendChild(mask);
 
     cursor = span.end;

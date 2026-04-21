@@ -35,6 +35,10 @@
   background: rgba(24, 24, 24, 0.88);
 }
 
+.shieldtext-hidden-mask-text {
+  visibility: hidden !important;
+}
+
 .shieldtext-editable-overlay {
   position: fixed;
   z-index: 2147483645;

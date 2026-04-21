@@ -312,7 +312,10 @@ function renderEditableOverlay(state, text, spans, settings, tooltip) {
     mask.className = settings?.interventionMode === "hide"
       ? "shieldtext-editable-hide"
       : "shieldtext-editable-mask";
-    mask.textContent = text.slice(span.start, span.end);
+    const hiddenText = document.createElement("span");
+    hiddenText.className = "shieldtext-hidden-mask-text";
+    hiddenText.textContent = text.slice(span.start, span.end);
+    mask.appendChild(hiddenText);
     fragment.appendChild(mask);
 
     cursor = span.end;
