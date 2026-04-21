@@ -361,7 +361,7 @@ function doSpansCoverFullText(spans, text) {
 
 function shouldUseEditableNativeMask(element, spans, text) {
   return (
-    element instanceof HTMLInputElement &&
+    (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) &&
     isSingleLineEditableElement(element) &&
     doSpansCoverFullText(spans, text)
   );
