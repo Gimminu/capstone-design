@@ -368,11 +368,7 @@ function doSpansCoverFullText(spans, text) {
 }
 
 function shouldUseEditableNativeMask(element, spans, text) {
-  return (
-    element instanceof HTMLInputElement &&
-    isSingleLineEditableElement(element) &&
-    doSpansCoverFullText(spans, text)
-  );
+  return false;
 }
 
 function renderEditableValueOutcome(candidate, outcome, settings) {
