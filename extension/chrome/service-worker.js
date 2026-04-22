@@ -893,13 +893,13 @@ async function analyzeTextBatch(message) {
   } catch (error) {
     const normalized = normalizeBackendError(error, "ANALYZE_BATCH_FAILED");
     const analysisDiagnostics = error?.analysisDiagnostics || null;
+    const isRuntimeAnalysisMode =
+      analysisMode === "foreground" ||
+      analysisMode === "background-validation" ||
+      analysisMode === "reconcile";
     const canDegradeWithoutFailing =
-      normalized.retryable &&
-      (
-        analysisMode === "foreground" ||
-        analysisMode === "background-validation" ||
-        analysisMode === "reconcile"
-      );
+      isRuntimeAnalysisMode &&
+      normalized.errorCode !== "INVALID_RESPONSE";
 
     if (canDegradeWithoutFailing) {
       return {
