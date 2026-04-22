@@ -25,38 +25,6 @@ const CATEGORY_LABELS = {
   custom: "사용자"
 };
 
-const KOREAN_MASK_SUFFIXES = [
-  "이라고",
-  "이라도",
-  "이란",
-  "이라",
-  "이야",
-  "인데",
-  "이고",
-  "이나",
-  "으로",
-  "에게",
-  "에서",
-  "보다",
-  "처럼",
-  "아",
-  "야",
-  "은",
-  "는",
-  "이",
-  "가",
-  "을",
-  "를",
-  "도",
-  "만",
-  "에",
-  "로",
-  "과",
-  "와",
-  "랑",
-  "여"
-];
-
 const SKIP_TAGS = new Set([
   "SCRIPT",
   "STYLE",
@@ -3019,34 +2987,6 @@ function countRawEvidenceSpans(spans, originalText) {
   }).length;
 }
 
-function expandMaskSpansForDisplay(text, spans) {
-  const sourceText = String(text || "");
-  if (!sourceText) {
-    return [];
-  }
-
-  const expanded = normalizeEvidenceSpans(spans, sourceText).map((span) => {
-    let nextEnd = span.end;
-
-    if (/[가-힣]/.test(sourceText.slice(Math.max(0, span.end - 1), span.end))) {
-      for (const suffix of KOREAN_MASK_SUFFIXES) {
-        if (sourceText.startsWith(suffix, nextEnd)) {
-          nextEnd += suffix.length;
-          break;
-        }
-      }
-    }
-
-    return {
-      ...span,
-      end: Math.min(sourceText.length, nextEnd),
-      text: sourceText.slice(span.start, Math.min(sourceText.length, nextEnd))
-    };
-  });
-
-  return normalizeEvidenceSpans(expanded, sourceText);
-}
-
 function getForegroundBackendSource(meta) {
   const requestedCount = Number(meta?.requestedCount || 0);
   const contentCacheHitCount = Number(meta?.cacheHitCount || 0);
@@ -3552,7 +3492,7 @@ function buildNodeOutcome(candidate, analysis, settings, evidenceSpans) {
     Array.isArray(evidenceSpans) ? evidenceSpans : [],
     candidate.text
   );
-  const displaySpans = expandMaskSpansForDisplay(candidate.text, normalizedLocalSpans);
+  const displaySpans = normalizedLocalSpans;
 
   if (displaySpans.length === 0) {
     return {
