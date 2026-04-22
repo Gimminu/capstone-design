@@ -2503,6 +2503,25 @@ function buildHotPathAnalysisUnits(candidates, options = {}) {
 
         units.push(...contextualUnits);
       }
+    } else if (isYouTubePage()) {
+      const containerLimit = Math.max(
+        1,
+        Number.isFinite(options.containerLimit)
+          ? Number(options.containerLimit)
+          : MAX_FOREGROUND_WAVE_CONTAINERS
+      );
+      const contextualUnits = buildContainerAnalysisUnits(
+        selectForegroundCandidatesByContainer(textCandidates, containerLimit)
+      )
+        .map((unit) => ({
+          ...unit,
+          cacheScope: "foreground-contextual",
+          cacheKey: normalizeText(unit?.text || "")
+        }))
+        .map((unit) => (options.boundContext ? boundAnalysisUnitForHotPath(unit) : unit))
+        .filter((unit) => unit?.text && Array.isArray(unit.members) && unit.members.length > 0);
+
+      units.push(...contextualUnits);
     } else {
       units.push(...buildForegroundAnalysisUnits(textCandidates));
     }
