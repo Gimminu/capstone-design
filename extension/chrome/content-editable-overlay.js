@@ -255,6 +255,9 @@ function syncEditableOverlayLayout(state) {
   overlayContent.style.letterSpacing = style.letterSpacing;
   overlayContent.style.wordSpacing = style.wordSpacing;
   overlayContent.style.fontKerning = style.fontKerning;
+  overlayContent.style.fontVariant = style.fontVariant;
+  overlayContent.style.fontVariantLigatures = style.fontVariantLigatures;
+  overlayContent.style.fontVariantNumeric = style.fontVariantNumeric;
   overlayContent.style.fontFeatureSettings = style.fontFeatureSettings;
   overlayContent.style.textRendering = style.textRendering;
   overlayContent.style.textAlign = style.textAlign;
@@ -287,6 +290,11 @@ function renderEditableOverlay(state, text, spans, settings, tooltip) {
   state.maskedText = text;
   state.maskedSpans = spans;
   state.overlayTooltip = tooltip;
+  if (doSpansCoverFullText(spans, text)) {
+    state.overlayRoot.dataset.shieldtextFullSpan = "true";
+  } else {
+    delete state.overlayRoot.dataset.shieldtextFullSpan;
+  }
   syncEditableOverlayLayout(state);
 
   if (!state.overlayContent) return;
@@ -361,7 +369,7 @@ function doSpansCoverFullText(spans, text) {
 
 function shouldUseEditableNativeMask(element, spans, text) {
   return (
-    (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) &&
+    element instanceof HTMLInputElement &&
     isSingleLineEditableElement(element) &&
     doSpansCoverFullText(spans, text)
   );
