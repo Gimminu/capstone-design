@@ -5283,7 +5283,7 @@ function scheduleStartupFollowupPipelines() {
   }
 }
 
-function scheduleBackendWarmup() {
+function scheduleBackendWarmup(options = {}) {
   if (backendWarmupStarted || extensionContextInvalidated || isUnsupportedPage()) {
     return;
   }
@@ -5314,12 +5314,12 @@ function scheduleBackendWarmup() {
   };
 
   window.setTimeout(() => {
-    if ("requestIdleCallback" in window) {
+    if (!options.immediate && "requestIdleCallback" in window) {
       window.requestIdleCallback(runWarmup, { timeout: 1000 });
       return;
     }
     runWarmup();
-  }, 400);
+  }, options.immediate ? 0 : 400);
 }
 
 function invalidatePendingAnalysisForNavigation() {
@@ -5870,6 +5870,7 @@ async function bootstrap() {
 
 function scheduleBootstrapWhenReady() {
   if (bootstrapStarted || extensionContextInvalidated) return;
+  scheduleBackendWarmup({ immediate: true });
 
   if (document.body && document.documentElement) {
     bootstrap().catch((error) => {
