@@ -2792,8 +2792,11 @@ function getAnalysisCacheKey(entry) {
   const sensitivity = normalizeSensitivity(
     entry?.cacheSensitivity ?? cachedSettings?.sensitivity ?? DEFAULT_SETTINGS.sensitivity
   );
+  const backendKey = normalizeText(
+    entry?.cacheApiBaseUrl ?? cachedSettings?.backendApiBaseUrl ?? DEFAULT_SETTINGS.backendApiBaseUrl
+  );
   const textKey = normalizeText(entry?.cacheKey || entry?.text || "");
-  return `${ANALYSIS_CACHE_SCHEMA_VERSION}::${scope}::${sensitivity}::${textKey}`;
+  return `${ANALYSIS_CACHE_SCHEMA_VERSION}::${backendKey}::${scope}::${sensitivity}::${textKey}`;
 }
 
 function getCachedAnalysis(entry) {
