@@ -81,7 +81,7 @@
 
 .shieldtext-editable-mask,
 .shieldtext-editable-hide {
-  display: inline;
+  display: inline-block;
   color: transparent !important;
   -webkit-text-fill-color: transparent !important;
   text-shadow: none !important;
@@ -89,19 +89,23 @@
   border-radius: 0.12em;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+  min-width: 0.55em;
 }
 
 .shieldtext-editable-overlay[data-shieldtext-full-span="true"] .shieldtext-editable-mask,
 .shieldtext-editable-overlay[data-shieldtext-full-span="true"] .shieldtext-editable-hide {
   border-radius: 0.18em;
+  box-shadow: 0 0 0 0.08em rgb(18, 18, 18);
 }
 
 .shieldtext-editable-mask {
   background: rgb(18, 18, 18);
+  box-shadow: 0 0 0 0.06em rgb(18, 18, 18);
 }
 
 .shieldtext-editable-hide {
   background: rgb(24, 24, 24);
+  box-shadow: 0 0 0 0.06em rgb(24, 24, 24);
 }
 
 .shieldtext-site-policy-overlay {

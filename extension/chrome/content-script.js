@@ -4206,6 +4206,7 @@ function scheduleReconcileFlush(delayMs = RECONCILE_FLUSH_DELAY_MS) {
   scheduledReconcileDelayMs = normalizedDelay;
 
   reconcileFlushTimerId = window.setTimeout(() => {
+    reconcileFlushTimerId = null;
     scheduledReconcileDelayMs = 0;
     flushReconcileQueue().catch((error) => {
       console.error("[청마루] reconcile queue flush failed", error);
@@ -4239,6 +4240,11 @@ function enqueueReconcileCandidates(candidates, pipelineSequence, context, optio
 
 async function flushReconcileQueue() {
   if (isReconcileRunning || RECONCILE_QUEUE.size === 0) {
+    return;
+  }
+
+  if (isPipelineRunning) {
+    scheduleReconcileFlush(Math.max(RECONCILE_FLUSH_DELAY_MS, 64));
     return;
   }
 

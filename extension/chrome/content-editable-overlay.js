@@ -137,6 +137,8 @@ function ensureEditableOverlay(state) {
   overlayRoot.className = "shieldtext-editable-overlay";
   overlayRoot.setAttribute("aria-hidden", "true");
   overlayRoot.dataset.shieldtextOverlay = "true";
+  overlayRoot.style.setProperty("z-index", "2147483647", "important");
+  overlayRoot.style.setProperty("pointer-events", "none", "important");
 
   const overlayContent = document.createElement("div");
   overlayContent.className = "shieldtext-editable-overlay-content";
@@ -203,6 +205,9 @@ function syncEditableOverlayLayout(state) {
     overlayHost === document.body || overlayHost === document.documentElement
       ? "fixed"
       : "absolute";
+  overlayRoot.style.setProperty("z-index", "2147483647", "important");
+  overlayRoot.style.setProperty("pointer-events", "none", "important");
+  overlayRoot.style.isolation = "isolate";
   overlayRoot.style.left = `${Math.round(rect.left - hostRect.left)}px`;
   overlayRoot.style.top = `${Math.round(rect.top - hostRect.top)}px`;
   overlayRoot.style.width = `${Math.round(rect.width)}px`;
