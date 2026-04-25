@@ -38,6 +38,10 @@ const SMALL_ANALYZE_BATCH_CHUNK_SIZE = 2;
 const MEDIUM_ANALYZE_BATCH_CHUNK_SIZE = 4;
 const LARGE_ANALYZE_BATCH_CHUNK_SIZE = 6;
 const XL_ANALYZE_BATCH_CHUNK_SIZE = 12;
+const FOREGROUND_ANALYZE_MIN_TIMEOUT_MS = 900;
+const RECONCILE_ANALYZE_TIMEOUT_CAP_MS = 2200;
+const BACKGROUND_ANALYZE_TIMEOUT_CAP_MS = 1800;
+const SELF_TEST_ANALYZE_TIMEOUT_CAP_MS = 5000;
 const FULL_ANALYSIS_RESPONSE_CACHE = new Map();
 const FULL_ANALYSIS_IN_FLIGHT_REQUESTS = new Map();
 const BACKEND_REQUEST_QUEUES = new Map([
@@ -620,15 +624,39 @@ async function performAnalyzeBatchRequest(apiBaseUrl, texts, requestTimeoutMs, s
 
 function getAnalyzeBatchRequestTimeoutMs(requestTimeoutMs, mode = "foreground") {
   const normalizedMode = normalizeAnalyzeBatchMode(mode);
+  const requestedTimeoutMs = Math.max(0, Number(requestTimeoutMs || 0));
+
   if (normalizedMode === "background-validation") {
-    return Math.max(12000, requestTimeoutMs);
+    return Math.max(
+      FOREGROUND_ANALYZE_MIN_TIMEOUT_MS,
+      Math.min(
+        BACKGROUND_ANALYZE_TIMEOUT_CAP_MS,
+        requestedTimeoutMs || BACKGROUND_ANALYZE_TIMEOUT_CAP_MS
+      )
+    );
   }
 
   if (normalizedMode === "reconcile") {
-    return Math.max(8000, requestTimeoutMs);
+    return Math.max(
+      FOREGROUND_ANALYZE_MIN_TIMEOUT_MS,
+      Math.min(
+        RECONCILE_ANALYZE_TIMEOUT_CAP_MS,
+        requestedTimeoutMs || RECONCILE_ANALYZE_TIMEOUT_CAP_MS
+      )
+    );
   }
 
-  return Math.max(900, requestTimeoutMs);
+  if (normalizedMode === "self-test") {
+    return Math.max(
+      1200,
+      Math.min(
+        SELF_TEST_ANALYZE_TIMEOUT_CAP_MS,
+        requestedTimeoutMs || SELF_TEST_ANALYZE_TIMEOUT_CAP_MS
+      )
+    );
+  }
+
+  return Math.max(FOREGROUND_ANALYZE_MIN_TIMEOUT_MS, requestedTimeoutMs);
 }
 
 async function performAnalyzeBatchRequestWithSplits(
