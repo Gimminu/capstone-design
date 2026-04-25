@@ -214,6 +214,18 @@ function normalizeSensitivity(value) {
   return Math.max(0, Math.min(100, Math.round(numberValue)));
 }
 
+function sanitizeApiBaseUrl(value) {
+  const normalized = String(value || DEFAULT_SETTINGS.backendApiBaseUrl).trim();
+  if (!normalized) return DEFAULT_SETTINGS.backendApiBaseUrl;
+  return normalized.replace(/\/+$/, "");
+}
+
+function normalizeRequestTimeoutMs(value) {
+  const numberValue = Number(value);
+  if (Number.isNaN(numberValue)) return DEFAULT_SETTINGS.requestTimeoutMs;
+  return Math.max(1000, Math.min(30000, Math.round(numberValue)));
+}
+
 function normalizeLabel(value) {
   return normalizeText(value).toLowerCase();
 }
@@ -427,6 +439,9 @@ function getMergedSettings(storedSettings) {
   return {
     ...DEFAULT_SETTINGS,
     ...(storedSettings || {}),
+    backendApiBaseUrl: sanitizeApiBaseUrl(storedSettings?.backendApiBaseUrl),
+    requestTimeoutMs: normalizeRequestTimeoutMs(storedSettings?.requestTimeoutMs),
+    sensitivity: normalizeSensitivity(storedSettings?.sensitivity),
     categories: {
       ...DEFAULT_SETTINGS.categories,
       ...(storedSettings?.categories || {})
@@ -443,6 +458,7 @@ function invalidateAnalysisForSettingsChange() {
   ANALYSIS_CACHE.clear();
   latestAnalysisGeneration += 1;
   latestPipelineSequence += 1;
+  ignoreMutationsUntil = Date.now() + 180;
 
   for (const state of NODE_STATE_BY_ID.values()) {
     state.analysisGeneration = latestAnalysisGeneration;
@@ -455,6 +471,7 @@ function invalidateAnalysisForSettingsChange() {
     state.lastReconcileFingerprint = "";
     state.lastQueuedReconcileFingerprint = "";
     state.reconcileInFlightFingerprint = "";
+    restoreNodeState(state);
     if (state.nodeId) {
       DIRTY_NODE_IDS.add(state.nodeId);
     }
@@ -471,10 +488,18 @@ function invalidateAnalysisForSettingsChange() {
     state.lastReconcileFingerprint = "";
     state.lastQueuedReconcileFingerprint = "";
     state.reconcileInFlightFingerprint = "";
+    restoreEditableValueState(state);
     if (state.nodeId) {
       DIRTY_NODE_IDS.add(state.nodeId);
     }
   }
+
+  RECONCILE_QUEUE.clear();
+  if (reconcileFlushTimerId) {
+    window.clearTimeout(reconcileFlushTimerId);
+    reconcileFlushTimerId = null;
+  }
+  scheduledReconcileDelayMs = 0;
 }
 
 async function loadSettings(options = {}) {
