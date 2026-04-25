@@ -67,7 +67,7 @@ const HOT_PATH_WORKER_INIT_TIMEOUT_MS = 900;
 const HOT_PATH_WORKER_BACKOFF_MS = 8000;
 const MAX_HOT_PATH_CONTEXT_LENGTH = 320;
 const INPUT_PIPELINE_DEBOUNCE_MS = 0;
-const VISIBILITY_PIPELINE_DEBOUNCE_MS = 24;
+const VISIBILITY_PIPELINE_DEBOUNCE_MS = 8;
 const RECONCILE_FLUSH_DELAY_MS = 20;
 const RECONCILE_FAST_FLUSH_DELAY_MS = 0;
 const RECONCILE_CHUNK_SIZE = 2;
@@ -5373,7 +5373,7 @@ function schedulePipeline(reason) {
   let delay = PIPELINE_DEBOUNCE_MS;
   if (reason === "input") {
     delay = INPUT_PIPELINE_DEBOUNCE_MS;
-  } else if (reason === "visibility" || reason === "mutation") {
+  } else if (reason === "visibility" || reason === "mutation" || reason === "route-change") {
     delay = VISIBILITY_PIPELINE_DEBOUNCE_MS;
   } else if (reason === "background-validation") {
     delay = BACKGROUND_PIPELINE_DEBOUNCE_MS;
