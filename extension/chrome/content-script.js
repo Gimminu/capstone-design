@@ -5581,6 +5581,8 @@ function scheduleBackendWarmup(options = {}) {
 function invalidatePendingAnalysisForNavigation() {
   latestAnalysisGeneration += 1;
   latestPipelineSequence += 1;
+  suppressMutationFeedback(180);
+  clearStartupFollowupPipelines();
 
   for (const state of NODE_STATE_BY_ID.values()) {
     state.analysisGeneration = latestAnalysisGeneration;
