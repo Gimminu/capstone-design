@@ -55,6 +55,7 @@ const MAX_BACKGROUND_CONTAINERS = 14;
 const VIEWPORT_BUFFER_PX = 720;
 const SCROLL_REFRESH_TEXT_NODE_LIMIT = 96;
 const SCROLL_SETTLE_REFRESH_DELAY_MS = 110;
+const SCROLL_LATE_REFRESH_DELAY_MS = 340;
 const MAX_ANALYSIS_CONTEXT_LENGTH = 360;
 const MAX_RECONCILE_CONTEXT_LENGTH = 560;
 const MIN_ANALYSIS_CONTEXT_LENGTH = 24;
@@ -178,6 +179,7 @@ let overlaySyncFrameId = null;
 let pendingEditableOverlaySyncFrames = 0;
 let scrollVisibilityRefreshFrameId = null;
 let scrollVisibilityRefreshSettleTimerId = null;
+let scrollVisibilityRefreshLateTimerId = null;
 let suppressedMutationRefreshTimerId = null;
 let reconcileFlushTimerId = null;
 let scheduledReconcileDelayMs = 0;
@@ -292,6 +294,10 @@ function teardownInvalidatedExtensionContext() {
   if (scrollVisibilityRefreshSettleTimerId) {
     window.clearTimeout(scrollVisibilityRefreshSettleTimerId);
     scrollVisibilityRefreshSettleTimerId = null;
+  }
+  if (scrollVisibilityRefreshLateTimerId) {
+    window.clearTimeout(scrollVisibilityRefreshLateTimerId);
+    scrollVisibilityRefreshLateTimerId = null;
   }
   if (bootstrapRetryTimerId) {
     window.clearTimeout(bootstrapRetryTimerId);
@@ -5838,6 +5844,15 @@ function scheduleScrollVisibilityRefresh(options = {}) {
     scrollVisibilityRefreshSettleTimerId = null;
     runScrollVisibilityRefresh();
   }, SCROLL_SETTLE_REFRESH_DELAY_MS);
+
+  if (scrollVisibilityRefreshLateTimerId) {
+    window.clearTimeout(scrollVisibilityRefreshLateTimerId);
+  }
+
+  scrollVisibilityRefreshLateTimerId = window.setTimeout(() => {
+    scrollVisibilityRefreshLateTimerId = null;
+    runScrollVisibilityRefresh();
+  }, SCROLL_LATE_REFRESH_DELAY_MS);
 }
 
 function scheduleSuppressedMutationRefresh() {
