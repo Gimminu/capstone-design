@@ -63,11 +63,13 @@ function getLabCaseRenderState(element, sampleText) {
   if (!(element instanceof Element)) {
     return {
       editable: false,
+      editableTagName: "",
       maskMode: "",
       maskElementCount: 0,
       editableTitle: "",
       editableConcealsText: false,
-      suspiciousEditableBar: false
+      suspiciousEditableBar: false,
+      suspiciousNativeTextareaMask: false
     };
   }
 
@@ -88,6 +90,7 @@ function getLabCaseRenderState(element, sampleText) {
 
     return {
       editable: true,
+      editableTagName: element.tagName,
       maskMode,
       maskElementCount: state?.overlayRoot?.isConnected
         ? state.overlayRoot.querySelectorAll(
@@ -96,7 +99,9 @@ function getLabCaseRenderState(element, sampleText) {
         : 0,
       editableTitle: String(element.getAttribute("title") || ""),
       editableConcealsText,
-      suspiciousEditableBar: maskMode === "single-line-bars" && compactLength <= 8
+      suspiciousEditableBar: maskMode === "single-line-bars" && compactLength <= 8,
+      suspiciousNativeTextareaMask:
+        element instanceof HTMLTextAreaElement && maskMode === "native-mask"
     };
   }
 
@@ -106,9 +111,11 @@ function getLabCaseRenderState(element, sampleText) {
     maskElementCount: element.querySelectorAll(
       ".shieldtext-inline-mask, .shieldtext-inline-hide, .shieldtext-editable-mask, .shieldtext-editable-hide, .shieldtext-editable-bar-mask"
     ).length,
+    editableTagName: "",
     editableTitle: "",
     editableConcealsText: false,
-    suspiciousEditableBar: false
+    suspiciousEditableBar: false,
+    suspiciousNativeTextareaMask: false
   };
 }
 
@@ -131,7 +138,8 @@ function isLabRenderStateHealthy(renderState, extensionMasked) {
     return (
       !renderState.editableConcealsText &&
       String(renderState.editableTitle || "") === "" &&
-      !renderState.suspiciousEditableBar
+      !renderState.suspiciousEditableBar &&
+      !renderState.suspiciousNativeTextareaMask
     );
   }
 
@@ -139,6 +147,7 @@ function isLabRenderStateHealthy(renderState, extensionMasked) {
     return (
       String(renderState.editableTitle || "") === "" &&
       !renderState.suspiciousEditableBar &&
+      !renderState.suspiciousNativeTextareaMask &&
       (renderState.maskMode === "native-mask" || Number(renderState.maskElementCount || 0) > 0)
     );
   }
