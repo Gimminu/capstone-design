@@ -87,6 +87,31 @@ function concealEditableSourceText(state) {
   state.nativeMaskApplied = false;
 }
 
+function applyNativeFullEditableMask(state) {
+  if (!state?.element) return false;
+  if (!isSingleLineEditableElement(state.element)) return false;
+
+  if (state.overlayRoot?.isConnected) {
+    state.overlayRoot.remove();
+  }
+
+  state.overlayRoot = null;
+  state.overlayContent = null;
+  state.overlayMode = "native-full-mask";
+  state.overlayRenderKey = "";
+  state.overlayLayoutKey = "";
+  state.element.style.webkitTextSecurity = "disc";
+  state.element.style.textSecurity = "disc";
+  state.element.style.color = state.originalColor || "";
+  state.element.style.webkitTextFillColor = state.originalWebkitTextFillColor || "";
+  state.element.style.textShadow = state.originalTextShadow || "";
+  state.element.classList.remove("shieldtext-editable-source-concealed");
+  state.element.removeAttribute("title");
+  state.nativeMaskApplied = true;
+  MASKED_EDITABLE_STATE_IDS.add(state.nodeId);
+  return true;
+}
+
 function getEditableOverlayHost(element) {
   // Fixed overlays are more stable for search inputs/combobox textareas whose
   // parent layout can move independently during browser or SPA UI transitions.
@@ -358,13 +383,25 @@ function renderEditableValueOutcome(candidate, outcome, settings) {
   }
 
   const tooltip = buildMaskTooltip(outcome.categories, outcome.reasons, settings);
+  const shouldUseNativeFullMask =
+    settings?.interventionMode !== "hide" &&
+    doSpansCoverFullText(spans, candidate.text) &&
+    applyNativeFullEditableMask(state);
   const decisionKey = JSON.stringify({
     text: candidate.text,
     categories: outcome.categories,
     interventionMode: settings?.interventionMode || "mask",
     tooltip,
-    spans
+    spans,
+    nativeMask: shouldUseNativeFullMask
   });
+  if (shouldUseNativeFullMask) {
+    state.isMasked = true;
+    state.isPending = false;
+    state.lastDecisionKey = decisionKey;
+    return;
+  }
+
   if (decisionKey === state.lastDecisionKey) {
     renderEditableOverlay(state, candidate.text, spans, settings, tooltip);
     return;
