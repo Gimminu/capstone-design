@@ -655,7 +655,35 @@ async function performAnalyzeBatchRequest(apiBaseUrl, texts, requestTimeoutMs, s
     queueDepthAtStart: 0
   };
 
+  async function runFetchRequest() {
+    const body = await fetchJsonWithTimeout(
+      `${apiBaseUrl}/analyze_batch`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          texts,
+          sensitivity: normalizeSensitivity(sensitivity)
+        })
+      },
+      requestTimeoutMs
+    );
+
+    return {
+      results: validateAnalyzeBatchResponse(body, texts),
+      queueDiagnostics
+    };
+  }
+
   try {
+    if (normalizeAnalyzeBatchMode(mode) === "foreground") {
+      queueDiagnostics = {
+        queueWaitMs: 0,
+        queueDepthAtEnqueue: getBackendQueuedRequestCount() + (isBackendRequestRunning ? 1 : 0),
+        queueDepthAtStart: getBackendQueuedRequestCount() + (isBackendRequestRunning ? 1 : 0)
+      };
+      return await runFetchRequest();
+    }
+
     const body = await enqueueBackendRequest(
       mode,
       (diagnostics = {}) => {

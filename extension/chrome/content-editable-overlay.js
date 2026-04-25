@@ -384,7 +384,6 @@ function renderEditableValueOutcome(candidate, outcome, settings) {
 
   const tooltip = buildMaskTooltip(outcome.categories, outcome.reasons, settings);
   const shouldUseNativeFullMask =
-    settings?.interventionMode !== "hide" &&
     doSpansCoverFullText(spans, candidate.text) &&
     applyNativeFullEditableMask(state);
   const decisionKey = JSON.stringify({
