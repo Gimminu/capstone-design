@@ -1407,12 +1407,15 @@ function collectGoogleHighSignalInteractiveCandidates(limit = MAX_DOMAIN_PRIORIT
     "#bres button",
     "#bres [role='button']",
     "#bres a[href]",
+    "#bres [data-ved]",
     "#botstuff button",
     "#botstuff [role='button']",
     "#botstuff a[href]",
+    "#botstuff [data-ved]",
     "#rhs button",
     "#rhs [role='button']",
-    "#rhs a[href]"
+    "#rhs a[href]",
+    "#rhs [data-ved]"
   ];
   const elements = [];
   const seenElements = new Set();
@@ -1747,6 +1750,23 @@ function isShortHighSignalCandidate(candidate) {
   }
 
   return compactLength <= 24 && tokenCount <= 3;
+}
+
+function isGoogleHighSignalSurfaceCandidate(candidate) {
+  if (!isGoogleSearchPage() || !isShortHighSignalCandidate(candidate)) {
+    return false;
+  }
+
+  const element = candidate?.element;
+  if (!(element instanceof Element)) {
+    return false;
+  }
+
+  if (shouldAllowGoogleInteractiveElement(element)) {
+    return true;
+  }
+
+  return Boolean(element.closest("#bres, #botstuff, #rhs"));
 }
 
 function shouldPreferStandaloneAnalysis(candidate) {
@@ -2138,9 +2158,7 @@ function selectForegroundWaveCandidates(candidates, settings, runReason) {
 
       if (
         !selectedNodeIds.has(candidate.nodeId) &&
-        candidate.element instanceof Element &&
-        shouldAllowGoogleInteractiveElement(candidate.element) &&
-        isShortHighSignalCandidate(candidate)
+        isGoogleHighSignalSurfaceCandidate(candidate)
       ) {
         selected.push(candidate);
         selectedNodeIds.add(candidate.nodeId);
