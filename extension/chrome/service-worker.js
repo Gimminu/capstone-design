@@ -40,6 +40,19 @@ const LARGE_ANALYZE_BATCH_CHUNK_SIZE = 6;
 const XL_ANALYZE_BATCH_CHUNK_SIZE = 12;
 const FULL_ANALYSIS_RESPONSE_CACHE = new Map();
 const FULL_ANALYSIS_IN_FLIGHT_REQUESTS = new Map();
+const BACKEND_REQUEST_QUEUES = new Map([
+  ["foreground", []],
+  ["reconcile", []],
+  ["background-validation", []],
+  ["self-test", []]
+]);
+const BACKEND_REQUEST_PRIORITY = [
+  "foreground",
+  "reconcile",
+  "background-validation",
+  "self-test"
+];
+let isBackendRequestRunning = false;
 
 function normalizeAnalyzeBatchMode(value) {
   const normalized = String(value || "").trim().toLowerCase();
@@ -47,6 +60,51 @@ function normalizeAnalyzeBatchMode(value) {
     return normalized;
   }
   return "foreground";
+}
+
+function dequeueNextBackendRequest() {
+  for (const mode of BACKEND_REQUEST_PRIORITY) {
+    const queue = BACKEND_REQUEST_QUEUES.get(mode);
+    if (queue?.length) {
+      return queue.shift();
+    }
+  }
+
+  return null;
+}
+
+function drainBackendRequestQueue() {
+  if (isBackendRequestRunning) {
+    return;
+  }
+
+  const nextRequest = dequeueNextBackendRequest();
+  if (!nextRequest) {
+    return;
+  }
+
+  isBackendRequestRunning = true;
+  Promise.resolve()
+    .then(nextRequest.operation)
+    .then(nextRequest.resolve, nextRequest.reject)
+    .finally(() => {
+      isBackendRequestRunning = false;
+      drainBackendRequestQueue();
+    });
+}
+
+function enqueueBackendRequest(mode, operation) {
+  const normalizedMode = normalizeAnalyzeBatchMode(mode);
+  const queue = BACKEND_REQUEST_QUEUES.get(normalizedMode) || BACKEND_REQUEST_QUEUES.get("foreground");
+
+  return new Promise((resolve, reject) => {
+    queue.push({
+      operation,
+      resolve,
+      reject
+    });
+    drainBackendRequestQueue();
+  });
 }
 
 class BackendRequestError extends Error {
@@ -541,17 +599,20 @@ function validateAnalyzeBatchResponse(body, texts) {
   return results;
 }
 
-async function performAnalyzeBatchRequest(apiBaseUrl, texts, requestTimeoutMs, sensitivity) {
-  const body = await fetchJsonWithTimeout(
-    `${apiBaseUrl}/analyze_batch`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        texts,
-        sensitivity: normalizeSensitivity(sensitivity)
-      })
-    },
-    requestTimeoutMs
+async function performAnalyzeBatchRequest(apiBaseUrl, texts, requestTimeoutMs, sensitivity, mode = "foreground") {
+  const body = await enqueueBackendRequest(
+    mode,
+    () => fetchJsonWithTimeout(
+      `${apiBaseUrl}/analyze_batch`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          texts,
+          sensitivity: normalizeSensitivity(sensitivity)
+        })
+      },
+      requestTimeoutMs
+    )
   );
 
   return validateAnalyzeBatchResponse(body, texts);
@@ -585,7 +646,8 @@ async function performAnalyzeBatchRequestWithSplits(
       apiBaseUrl,
       texts,
       effectiveTimeoutMs,
-      sensitivity
+      sensitivity,
+      mode
     );
 
     return {
