@@ -5472,6 +5472,17 @@ function chooseHigherPriorityPipelineReason(currentReason, nextReason) {
     : currentReason;
 }
 
+function handleScheduledPipelineError(reason, error) {
+  if (handleExtensionContextError(error)) {
+    return;
+  }
+
+  console.error("[청마루] scheduled pipeline failed", {
+    reason: String(reason || ""),
+    error: serializeFailureReason(error)
+  });
+}
+
 function schedulePipeline(reason) {
   if (extensionContextInvalidated || isUnsupportedPage()) return;
 
@@ -5499,7 +5510,9 @@ function schedulePipeline(reason) {
     debounceTimerId = null;
     scheduledPipelineReason = "";
     scheduledPipelineDeadlineMs = 0;
-    executePipeline(reason);
+    executePipeline(reason).catch((error) => {
+      handleScheduledPipelineError(reason, error);
+    });
   }, delay);
 }
 
@@ -6060,14 +6073,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message?.type === "RUN_PIPELINE" || message?.type === "RUN_FILTER") {
-    executePipeline(message.reason || "manual").then((result) => {
-      sendResponse(result);
-    });
+    executePipeline(message.reason || "manual")
+      .then((result) => {
+        sendResponse(result);
+      })
+      .catch((error) => {
+        if (!handleExtensionContextError(error)) {
+          handleScheduledPipelineError(message.reason || "manual", error);
+        }
+        sendResponse({
+          ok: false,
+          reason: serializeFailureReason(error),
+          errorCode: String(error?.errorCode || "RUN_PIPELINE_FAILED"),
+          retryable: Boolean(error?.retryable)
+        });
+      });
     return true;
   }
 
   if (message?.type === "RUN_SELF_TEST") {
-    runFilterLabSelfTest().then(sendResponse);
+    runFilterLabSelfTest()
+      .then(sendResponse)
+      .catch((error) => {
+        sendResponse({
+          ok: false,
+          reason: serializeFailureReason(error),
+          errorCode: String(error?.errorCode || "RUN_SELF_TEST_FAILED"),
+          retryable: Boolean(error?.retryable)
+        });
+      });
     return true;
   }
 
