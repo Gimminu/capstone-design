@@ -1307,9 +1307,14 @@ function registerTextNode(textNode, options = {}) {
 function registerTextNodesInTree(root, options = {}) {
   const limit = Number.isFinite(options.limit) ? options.limit : Number.POSITIVE_INFINITY;
   const onlyVisible = Boolean(options.onlyVisible);
+  const markHighSignalDirty = options.markHighSignalDirty === true;
+  const highSignalDirtyLimit = Number.isFinite(options.highSignalDirtyLimit)
+    ? Math.max(0, Number(options.highSignalDirtyLimit))
+    : 24;
   let visitedCount = 0;
   let usefulCount = 0;
   let actionableCount = 0;
+  let highSignalDirtyCount = 0;
   const maxVisited = Number.isFinite(limit)
     ? Math.max(limit + 24, limit * 4)
     : Number.POSITIVE_INFINITY;
@@ -1325,6 +1330,17 @@ function registerTextNodesInTree(root, options = {}) {
     const normalizedText = normalizeText(getSourceText(state));
     if (!isCandidateTextUseful(normalizedText, element)) {
       return;
+    }
+
+    if (
+      markHighSignalDirty &&
+      highSignalDirtyCount < highSignalDirtyLimit &&
+      !state.isMasked &&
+      HIGH_SIGNAL_PROFANITY_PATTERN.test(normalizedText) &&
+      !isStateInSkippedRetryBackoff(state, buildFingerprint(normalizedText))
+    ) {
+      DIRTY_NODE_IDS.add(state.nodeId);
+      highSignalDirtyCount += 1;
     }
 
     usefulCount += 1;
@@ -3864,9 +3880,15 @@ function buildNodeOutcome(candidate, analysis, settings, evidenceSpans) {
     toxicity: Number(analysis?.scores?.toxicity || 0),
     hate: Number(analysis?.scores?.hate || 0)
   };
+  const normalizedLocalSpans = normalizeEvidenceSpans(
+    Array.isArray(evidenceSpans) ? evidenceSpans : [],
+    candidate.text
+  );
+  const displaySpans = normalizedLocalSpans;
   const flaggedProfanity = Boolean(analysis?.is_profane);
   const flaggedToxicity = Boolean(analysis?.is_toxic);
   const flaggedHate = Boolean(analysis?.is_hate);
+  const flaggedOffensive = Boolean(analysis?.is_offensive);
   const categories = [];
   const reasons = [];
 
@@ -3885,6 +3907,19 @@ function buildNodeOutcome(candidate, analysis, settings, evidenceSpans) {
     reasons.push(`혐오 ${Math.round(scores.hate * 100)}%`);
   }
 
+  if (categories.length === 0 && flaggedOffensive && displaySpans.length > 0) {
+    if (settings.categories?.insult) {
+      categories.push("insult");
+      reasons.push("유해 표현");
+    } else if (settings.categories?.abuse) {
+      categories.push("abuse");
+      reasons.push("공격적 표현");
+    } else if (settings.categories?.hate) {
+      categories.push("hate");
+      reasons.push("혐오 표현");
+    }
+  }
+
   const uniqueCategories = [...new Set(categories)];
   if (uniqueCategories.length === 0) {
     return {
@@ -3896,12 +3931,6 @@ function buildNodeOutcome(candidate, analysis, settings, evidenceSpans) {
       matchedKeywords: []
     };
   }
-
-  const normalizedLocalSpans = normalizeEvidenceSpans(
-    Array.isArray(evidenceSpans) ? evidenceSpans : [],
-    candidate.text
-  );
-  const displaySpans = normalizedLocalSpans;
 
   if (displaySpans.length === 0) {
     return {
@@ -5891,7 +5920,11 @@ function scheduleStartupFollowupPipelines() {
     const timeoutId = window.setTimeout(() => {
       STARTUP_FOLLOWUP_TIMEOUT_IDS.delete(timeoutId);
       if (extensionContextInvalidated || isUnsupportedPage()) return;
-      const registeredCount = refreshVisibleCandidateRegistrations({ markDirty: false });
+      const registeredCount = refreshVisibleCandidateRegistrations({
+        markDirty: false,
+        markHighSignalDirty: true,
+        highSignalDirtyLimit: 12
+      });
       if (registeredCount > 0) {
         schedulePipeline("visibility");
       }
@@ -6151,12 +6184,18 @@ function initializeNavigationListeners() {
 function refreshVisibleCandidateRegistrations(options = {}) {
   let registeredCount = 0;
   const markDirty = options.markDirty === true;
+  const markHighSignalDirty = options.markHighSignalDirty === true;
+  const highSignalDirtyLimit = Number.isFinite(options.highSignalDirtyLimit)
+    ? Number(options.highSignalDirtyLimit)
+    : undefined;
 
   if (isGoogleSearchPage()) {
     const containers = getGoogleVisibleAnalysisContainers(MAX_BACKGROUND_CONTAINERS);
     for (const container of containers) {
       registeredCount += registerTextNodesInTree(container, {
         markDirty,
+        markHighSignalDirty,
+        highSignalDirtyLimit,
         onlyVisible: true,
         limit: MAX_GOOGLE_CANDIDATES_PER_CONTAINER
       });
@@ -6171,6 +6210,8 @@ function refreshVisibleCandidateRegistrations(options = {}) {
     for (const container of containers) {
       registeredCount += registerTextNodesInTree(container, {
         markDirty,
+        markHighSignalDirty,
+        highSignalDirtyLimit,
         onlyVisible: true,
         limit: MAX_GOOGLE_CANDIDATES_PER_CONTAINER
       });
@@ -6182,6 +6223,8 @@ function refreshVisibleCandidateRegistrations(options = {}) {
 
   return registerTextNodesInTree(document.body, {
     markDirty,
+    markHighSignalDirty,
+    highSignalDirtyLimit,
     onlyVisible: true,
     limit: SCROLL_REFRESH_TEXT_NODE_LIMIT
   });
@@ -6198,7 +6241,10 @@ function runScrollVisibilityRefresh() {
       return;
     }
 
-    const registeredCount = refreshVisibleCandidateRegistrations();
+    const registeredCount = refreshVisibleCandidateRegistrations({
+      markHighSignalDirty: true,
+      highSignalDirtyLimit: 16
+    });
     if (registeredCount > 0) {
       schedulePipeline("visibility");
     }
