@@ -74,6 +74,8 @@ function getLabCaseRenderState(element, sampleText) {
       suspiciousHardConcealmentMissing: false,
       overlayDriftPx: 0,
       suspiciousOverlayDrift: false,
+      fullSpanMaskCoverageRatio: 0,
+      suspiciousFullSpanMaskCoverage: false,
       suspiciousMaskTextVisible: false
     };
   }
@@ -113,6 +115,23 @@ function getLabCaseRenderState(element, sampleText) {
           Math.abs(overlayRect.height - elementRect.height)
         )
       : 0;
+    const fullSpanMask = state?.overlayRoot?.dataset?.shieldtextFullSpan === "true"
+      ? state.overlayRoot.querySelector(".shieldtext-editable-mask, .shieldtext-editable-hide")
+      : null;
+    const fullSpanMaskRect = fullSpanMask instanceof Element
+      ? fullSpanMask.getBoundingClientRect()
+      : null;
+    const fullSpanMaskCoverageRatio =
+      overlayRect && fullSpanMaskRect && overlayRect.height > 0
+        ? Math.min(1, Math.max(0, fullSpanMaskRect.height / overlayRect.height))
+        : 0;
+    const fullSpanMaskOffsetPx =
+      overlayRect && fullSpanMaskRect
+        ? Math.max(
+            Math.abs(fullSpanMaskRect.top - overlayRect.top),
+            Math.abs(fullSpanMaskRect.bottom - overlayRect.bottom)
+          )
+        : 0;
     const suspiciousMaskTextVisible = hasVisibleMaskText(state?.overlayRoot);
 
     return {
@@ -140,6 +159,12 @@ function getLabCaseRenderState(element, sampleText) {
         !editableHardConcealed,
       overlayDriftPx: Math.round(overlayDriftPx),
       suspiciousOverlayDrift: Boolean(overlayRect && overlayDriftPx > 4),
+      fullSpanMaskCoverageRatio: Math.round(fullSpanMaskCoverageRatio * 100) / 100,
+      fullSpanMaskOffsetPx: Math.round(fullSpanMaskOffsetPx),
+      suspiciousFullSpanMaskCoverage: Boolean(
+        state?.overlayRoot?.dataset?.shieldtextFullSpan === "true" &&
+          (!fullSpanMaskRect || fullSpanMaskCoverageRatio < 0.75 || fullSpanMaskOffsetPx > 8)
+      ),
       suspiciousMaskTextVisible
     };
   }
@@ -161,6 +186,8 @@ function getLabCaseRenderState(element, sampleText) {
     suspiciousHardConcealmentMissing: false,
     overlayDriftPx: 0,
     suspiciousOverlayDrift: false,
+    fullSpanMaskCoverageRatio: 0,
+    suspiciousFullSpanMaskCoverage: false,
     suspiciousMaskTextVisible: hasVisibleMaskText(element)
   };
 }
@@ -219,6 +246,7 @@ function isLabRenderStateHealthy(renderState, extensionMasked) {
       !renderState.suspiciousNativeTextareaMask &&
       !renderState.suspiciousHardConcealmentMissing &&
       !renderState.suspiciousOverlayDrift &&
+      !renderState.suspiciousFullSpanMaskCoverage &&
       !renderState.suspiciousMaskTextVisible &&
       (renderState.maskMode === "native-mask" || Number(renderState.maskElementCount || 0) > 0)
     );
