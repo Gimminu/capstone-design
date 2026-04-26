@@ -107,6 +107,7 @@ function concealEditableSourceText(state) {
   state.element.style.setProperty("-webkit-text-fill-color", "transparent", "important");
   state.element.style.setProperty("caret-color", caretColor, "important");
   state.element.style.setProperty("text-shadow", "none", "important");
+  state.element.removeAttribute("title");
   if (shouldUseHardEditableConcealment(state.element)) {
     state.element.style.filter = state.originalFilter || "";
     state.element.style.setProperty("opacity", "0", "important");
