@@ -41,6 +41,7 @@ function restoreEditableValueState(state) {
   state.element.style.webkitTextFillColor = state.originalWebkitTextFillColor || "";
   state.element.style.caretColor = state.originalCaretColor || "";
   state.element.style.textShadow = state.originalTextShadow || "";
+  state.element.style.filter = state.originalFilter || "";
   state.element.style.webkitTextSecurity = state.originalWebkitTextSecurity || "";
   state.element.style.textSecurity = state.originalTextSecurity || "";
   state.element.classList.remove("shieldtext-editable-source-concealed");
@@ -74,6 +75,21 @@ function isSingleLineEditableElement(element) {
   return false;
 }
 
+function shouldUseHardEditableConcealment(element) {
+  if (!(element instanceof HTMLTextAreaElement)) {
+    return false;
+  }
+
+  const hostname = String(location.hostname || "").toLowerCase();
+  if (!/(^|\.)google\./i.test(hostname)) {
+    return false;
+  }
+
+  const role = String(element.getAttribute("role") || "").toLowerCase();
+  const name = String(element.getAttribute("name") || "").toLowerCase();
+  return role === "combobox" || name === "q" || element.id === "APjFqb";
+}
+
 function concealEditableSourceText(state) {
   if (!state?.element) return;
   if (typeof suppressMutationFeedback === "function") {
@@ -90,6 +106,11 @@ function concealEditableSourceText(state) {
   state.element.style.setProperty("-webkit-text-fill-color", "transparent", "important");
   state.element.style.setProperty("caret-color", caretColor, "important");
   state.element.style.setProperty("text-shadow", "none", "important");
+  if (shouldUseHardEditableConcealment(state.element)) {
+    state.element.style.setProperty("filter", "opacity(0)", "important");
+  } else {
+    state.element.style.filter = state.originalFilter || "";
+  }
   state.element.classList.add("shieldtext-editable-source-concealed");
   state.nativeMaskApplied = false;
 }

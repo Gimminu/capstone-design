@@ -152,6 +152,7 @@ const SAFE_BROWSER_UI_LABELS = new Set([
 
 const HIGH_SIGNAL_PROFANITY_PATTERN =
   /(씨[이\s]*발|시[이\s]*발|씨[이\s]*팔|시[이\s]*팔|ㅅㅂ|ㅆㅂ|병[.\s]*신|ㅂㅅ|지[이\s]*랄|ㅈㄹ|존\s*나|ㅈㄴ|좆|좇|씹|개[새세][끼키]|꺼[져저]|닥[쳐치]|죽어|뒤져|느[금끔]마|니[금끔]마|미친[놈년새]?|ssibal|sibal|tlqkf|qudtls|byungsin|gaesaekki|gaesaek|jiral|jonna|nigaumma|negeumma|fuck(?:ing|er|ed)?|shit(?:ty|head|s)?|bitch(?:es)?|ass[\s_-]*hole|bastard(?:s)?|mother[\s_-]*fucker|dick|pussy|slut|whore)/i;
+const HIGH_SIGNAL_PROFANITY_SPAN_PATTERN = new RegExp(HIGH_SIGNAL_PROFANITY_PATTERN.source, "gi");
 
 let nextTextNodeId = 1;
 let nextEditableValueId = 1;
@@ -738,6 +739,7 @@ function getEditableValueState(element) {
       originalWebkitTextFillColor: element.style.webkitTextFillColor || "",
       originalCaretColor: element.style.caretColor || "",
       originalTextShadow: element.style.textShadow || "",
+      originalFilter: element.style.filter || "",
       originalWebkitTextSecurity: element.style.webkitTextSecurity || "",
       originalTextSecurity: element.style.textSecurity || "",
       overlayRoot: null,
@@ -3049,18 +3051,50 @@ function isRenderableEvidenceSpan(spanText) {
   return true;
 }
 
+function expandEvidenceSpanToHighSignalMatch(span, sourceText) {
+  const source = String(sourceText || "");
+  const start = Math.max(0, Number(span?.start ?? 0));
+  const end = Math.min(source.length, Number(span?.end ?? 0));
+  if (!source || end <= start) {
+    return { ...span, start, end, text: source.slice(start, end) };
+  }
+
+  const regex = new RegExp(HIGH_SIGNAL_PROFANITY_SPAN_PATTERN.source, "gi");
+  let match;
+  while ((match = regex.exec(source)) !== null) {
+    const matchText = match[0] || "";
+    const matchStart = match.index;
+    const matchEnd = matchStart + matchText.length;
+    if (matchEnd <= start || matchStart >= end) {
+      if (matchText.length === 0) {
+        regex.lastIndex += 1;
+      }
+      continue;
+    }
+
+    return {
+      ...span,
+      start: matchStart,
+      end: matchEnd,
+      text: source.slice(matchStart, matchEnd)
+    };
+  }
+
+  return { ...span, start, end, text: source.slice(start, end) };
+}
+
 function normalizeEvidenceSpans(spans, originalText) {
   const sourceText = String(originalText || "");
   const nextSpans = (Array.isArray(spans) ? spans : [])
     .map((span) => {
       const start = Math.max(0, Number(span?.start ?? 0));
       const end = Math.min(sourceText.length, Number(span?.end ?? 0));
-      return {
+      return expandEvidenceSpanToHighSignalMatch({
         start,
         end,
         score: Number(span?.score ?? 0),
         text: sourceText.slice(start, end)
-      };
+      }, sourceText);
     })
     .filter((span) => (
       Number.isFinite(span.start) &&
