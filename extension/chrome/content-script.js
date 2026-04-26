@@ -4861,6 +4861,12 @@ async function executeHotPathForCandidates(candidates, runReason) {
       analysisMode: "foreground"
     }
   );
+
+  if (analysisGeneration !== latestAnalysisGeneration) {
+    staleResponseDropCount += unitCandidates.length;
+    return { ok: true, stale: true };
+  }
+
   const pipelineSequence = ++latestPipelineSequence;
   const hostname = location.hostname || "unknown";
 
