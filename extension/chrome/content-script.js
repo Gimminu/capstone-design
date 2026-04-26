@@ -829,6 +829,8 @@ function getEditableValueState(element) {
       overlayTooltip: "",
       overlayRenderKey: "",
       overlayLayoutKey: "",
+      overlayTextColor: "",
+      overlayTextFillColor: "",
       nativeMaskApplied: false
     };
     EDITABLE_VALUE_STATE_BY_ID.set(nodeId, state);

@@ -37,6 +37,8 @@ function restoreEditableValueState(state) {
   state.overlayTooltip = "";
   state.overlayRenderKey = "";
   state.overlayLayoutKey = "";
+  state.overlayTextColor = "";
+  state.overlayTextFillColor = "";
   state.element.style.color = state.originalColor || "";
   state.element.style.webkitTextFillColor = state.originalWebkitTextFillColor || "";
   state.element.style.caretColor = state.originalCaretColor || "";
@@ -91,6 +93,25 @@ function shouldUseHardEditableConcealment(element) {
   return role === "combobox" || name === "q" || element.id === "APjFqb";
 }
 
+function isTransparentCssColor(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text || text === "transparent") return true;
+  return (
+    /^rgba\([^)]*,\s*0(?:\.0+)?\)$/.test(text) ||
+    /^rgb\([^)]*\/\s*0(?:\.0+)?\)$/.test(text)
+  );
+}
+
+function rememberEditableOverlayTextColor(state, computedStyle) {
+  if (!state || !computedStyle) return;
+  if (!isTransparentCssColor(computedStyle.color)) {
+    state.overlayTextColor = computedStyle.color;
+  }
+  if (!isTransparentCssColor(computedStyle.webkitTextFillColor)) {
+    state.overlayTextFillColor = computedStyle.webkitTextFillColor;
+  }
+}
+
 function concealEditableSourceText(state) {
   if (!state?.element) return;
   if (typeof suppressMutationFeedback === "function") {
@@ -98,6 +119,7 @@ function concealEditableSourceText(state) {
   }
 
   const computedStyle = window.getComputedStyle(state.element);
+  rememberEditableOverlayTextColor(state, computedStyle);
   const caretColor = computedStyle.caretColor && computedStyle.caretColor !== "auto"
     ? computedStyle.caretColor
     : computedStyle.color;
@@ -231,6 +253,12 @@ function syncEditableOverlayLayout(state) {
   }
 
   const style = window.getComputedStyle(element);
+  const overlayTextColor = isTransparentCssColor(style.color)
+    ? (state.overlayTextColor || "")
+    : style.color;
+  const overlayTextFillColor = isTransparentCssColor(style.webkitTextFillColor)
+    ? (state.overlayTextFillColor || overlayTextColor)
+    : style.webkitTextFillColor;
   const overlayRoot = state.overlayRoot;
   const overlayContent = state.overlayContent;
   const hostRect =
@@ -307,8 +335,8 @@ function syncEditableOverlayLayout(state) {
   overlayContent.style.textShadow = "none";
   overlayContent.style.direction = style.direction;
   overlayContent.style.writingMode = style.writingMode;
-  overlayContent.style.color = style.color;
-  overlayContent.style.webkitTextFillColor = style.color;
+  overlayContent.style.color = overlayTextColor || style.color;
+  overlayContent.style.webkitTextFillColor = overlayTextFillColor || overlayTextColor || style.color;
   overlayContent.style.whiteSpace = isSingleLineEditable
     ? "pre"
     : element instanceof HTMLTextAreaElement
@@ -340,11 +368,10 @@ function renderEditableOverlay(state, text, spans, settings, tooltip) {
   } else {
     delete state.overlayRoot.dataset.shieldtextFullSpan;
   }
+  concealEditableSourceText(state);
   syncEditableOverlayLayout(state);
 
   if (!state.overlayContent) return;
-
-  concealEditableSourceText(state);
 
   const renderKey = JSON.stringify({
     text,
