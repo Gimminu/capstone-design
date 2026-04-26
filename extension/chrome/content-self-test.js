@@ -75,6 +75,7 @@ function getLabCaseRenderState(element, sampleText) {
       overlayDriftPx: 0,
       suspiciousOverlayDrift: false,
       fullSpanMaskCoverageRatio: 0,
+      fullSpanMaskWidthCoverageRatio: 0,
       suspiciousFullSpanMaskCoverage: false,
       suspiciousMaskTextVisible: false
     };
@@ -125,6 +126,10 @@ function getLabCaseRenderState(element, sampleText) {
       overlayRect && fullSpanMaskRect && overlayRect.height > 0
         ? Math.min(1, Math.max(0, fullSpanMaskRect.height / overlayRect.height))
         : 0;
+    const fullSpanMaskWidthCoverageRatio =
+      overlayRect && fullSpanMaskRect && overlayRect.width > 0
+        ? Math.min(1, Math.max(0, fullSpanMaskRect.width / overlayRect.width))
+        : 0;
     const fullSpanMaskOffsetPx =
       overlayRect && fullSpanMaskRect
         ? Math.max(
@@ -160,10 +165,14 @@ function getLabCaseRenderState(element, sampleText) {
       overlayDriftPx: Math.round(overlayDriftPx),
       suspiciousOverlayDrift: Boolean(overlayRect && overlayDriftPx > 4),
       fullSpanMaskCoverageRatio: Math.round(fullSpanMaskCoverageRatio * 100) / 100,
+      fullSpanMaskWidthCoverageRatio: Math.round(fullSpanMaskWidthCoverageRatio * 100) / 100,
       fullSpanMaskOffsetPx: Math.round(fullSpanMaskOffsetPx),
       suspiciousFullSpanMaskCoverage: Boolean(
         state?.overlayRoot?.dataset?.shieldtextFullSpan === "true" &&
-          (!fullSpanMaskRect || fullSpanMaskCoverageRatio < 0.75 || fullSpanMaskOffsetPx > 8)
+          (!fullSpanMaskRect ||
+            fullSpanMaskCoverageRatio < 0.75 ||
+            fullSpanMaskWidthCoverageRatio < 0.45 ||
+            fullSpanMaskOffsetPx > 8)
       ),
       suspiciousMaskTextVisible
     };
@@ -187,6 +196,7 @@ function getLabCaseRenderState(element, sampleText) {
     overlayDriftPx: 0,
     suspiciousOverlayDrift: false,
     fullSpanMaskCoverageRatio: 0,
+    fullSpanMaskWidthCoverageRatio: 0,
     suspiciousFullSpanMaskCoverage: false,
     suspiciousMaskTextVisible: hasVisibleMaskText(element)
   };
