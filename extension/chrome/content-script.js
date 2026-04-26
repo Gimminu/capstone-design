@@ -105,7 +105,7 @@ const FOREGROUND_STANDALONE_SAFE_CACHE_TTL_MS = 7000;
 const FOREGROUND_CONTEXTUAL_SAFE_CACHE_TTL_MS = 800;
 const RECONCILE_CONTEXTUAL_SAFE_CACHE_TTL_MS = 600;
 const OFFENSIVE_CACHE_TTL_MS = 90000;
-const ANALYSIS_CACHE_SCHEMA_VERSION = "content-v4";
+const ANALYSIS_CACHE_SCHEMA_VERSION = "content-v5";
 const DECISION_STAGE_RANK = Object.freeze({
   foreground: 1,
   reconcile: 2
@@ -3995,9 +3995,17 @@ function renderOutcome(state, outcome, settings) {
     mask.className = settings?.interventionMode === "hide"
       ? "shieldtext-inline-hide"
       : "shieldtext-inline-mask";
+    mask.style.setProperty("color", "transparent", "important");
+    mask.style.setProperty("-webkit-text-fill-color", "transparent", "important");
+    mask.style.setProperty("text-shadow", "none", "important");
     const hiddenText = document.createElement("span");
     hiddenText.className = "shieldtext-hidden-mask-text";
     hiddenText.textContent = span.text;
+    hiddenText.style.setProperty("visibility", "hidden", "important");
+    hiddenText.style.setProperty("opacity", "0", "important");
+    hiddenText.style.setProperty("color", "transparent", "important");
+    hiddenText.style.setProperty("-webkit-text-fill-color", "transparent", "important");
+    hiddenText.style.setProperty("text-shadow", "none", "important");
     mask.appendChild(hiddenText);
     renderBox.appendChild(mask);
 
