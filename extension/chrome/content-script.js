@@ -6354,7 +6354,7 @@ async function bootstrap() {
 
 function scheduleBootstrapWhenReady() {
   if (bootstrapStarted || extensionContextInvalidated) return;
-  scheduleBackendWarmup({ immediate: true });
+  scheduleBackendWarmup();
 
   if (document.body && document.documentElement) {
     bootstrap().catch((error) => {
