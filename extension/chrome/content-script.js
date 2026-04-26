@@ -153,7 +153,7 @@ const SAFE_BROWSER_UI_LABELS = new Set([
 ]);
 
 const HIGH_SIGNAL_PROFANITY_PATTERN =
-  /(씨[이\s]*발|시[이\s]*발|씨[이\s]*팔|시[이\s]*팔|ㅅㅂ|ㅆㅂ|병[.\s]*신|ㅂㅅ|지[이\s]*랄|ㅈㄹ|존\s*나|ㅈㄴ|좆|좇|씹|개[새세][끼키]|꺼[져저]|닥[쳐치]|죽어|뒤져|느[금끔]마|니[금끔]마|미친[놈년새]?|ssibal|sibal|tlqkf|qudtls|byungsin|gaesaekki|gaesaek|jiral|jonna|nigaumma|negeumma|fuck(?:ing|er|ed)?|shit(?:ty|head|s)?|bitch(?:es)?|ass[\s_-]*hole|bastard(?:s)?|mother[\s_-]*fucker|dick|pussy|slut|whore)/i;
+  /(씨[이\s]*발|시[이\s]*발|씨[이\s]*팔|시[이\s]*팔|ㅅㅂ|ㅆㅂ|병[.\s]*신|ㅂㅅ|지[이\s]*랄|ㅈㄹ|존\s*나|ㅈㄴ|좆|좇|씹|개[새세][끼키]|꺼[져저]|닥[쳐치]|죽어|뒤져|느[금끔]마|니[금끔]마|미친[놈년새]?|(?<![A-Za-z])(?:ssibal|(?<!kapil\s)sibal|tlqkf|qudtls|byungsin|gaesaekki|gaesaek|jiral|jonna|nigaumma|negeumma|fuck(?:ing|er|ed)?|shit(?:ty|head|s)?|bitch(?:es)?|ass[\s_-]*hole|bastard(?:s)?|mother[\s_-]*fucker|dick|pussy|slut|whore)(?![A-Za-z]))/i;
 const HIGH_SIGNAL_PROFANITY_SPAN_PATTERN = new RegExp(HIGH_SIGNAL_PROFANITY_PATTERN.source, "gi");
 
 let nextTextNodeId = 1;
