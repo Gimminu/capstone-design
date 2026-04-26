@@ -73,7 +73,8 @@ function getLabCaseRenderState(element, sampleText) {
       editableHardConcealed: false,
       suspiciousHardConcealmentMissing: false,
       overlayDriftPx: 0,
-      suspiciousOverlayDrift: false
+      suspiciousOverlayDrift: false,
+      suspiciousMaskTextVisible: false
     };
   }
 
@@ -112,6 +113,7 @@ function getLabCaseRenderState(element, sampleText) {
           Math.abs(overlayRect.height - elementRect.height)
         )
       : 0;
+    const suspiciousMaskTextVisible = hasVisibleMaskText(state?.overlayRoot);
 
     return {
       editable: true,
@@ -137,7 +139,8 @@ function getLabCaseRenderState(element, sampleText) {
         maskMode === "full-overlay" &&
         !editableHardConcealed,
       overlayDriftPx: Math.round(overlayDriftPx),
-      suspiciousOverlayDrift: Boolean(overlayRect && overlayDriftPx > 4)
+      suspiciousOverlayDrift: Boolean(overlayRect && overlayDriftPx > 4),
+      suspiciousMaskTextVisible
     };
   }
 
@@ -157,7 +160,8 @@ function getLabCaseRenderState(element, sampleText) {
     sourceFilter: "",
     suspiciousHardConcealmentMissing: false,
     overlayDriftPx: 0,
-    suspiciousOverlayDrift: false
+    suspiciousOverlayDrift: false,
+    suspiciousMaskTextVisible: hasVisibleMaskText(element)
   };
 }
 
@@ -169,6 +173,26 @@ function getBackendMaskExpectation(backendResponse, backendOffensive, backendSpa
   // The extension renderer must never infer a mask from the boolean alone.
   // A positive backend decision still needs at least one exact, valid span.
   return Boolean(backendOffensive && Array.isArray(backendSpans) && backendSpans.length > 0);
+}
+
+function hasVisibleMaskText(root) {
+  if (!(root instanceof Element)) {
+    return false;
+  }
+
+  return [...root.querySelectorAll(".shieldtext-hidden-mask-text")].some((element) => {
+    const style = window.getComputedStyle(element);
+    const color = String(style.color || "").replace(/\s+/g, "").toLowerCase();
+    const fill = String(style.webkitTextFillColor || "").replace(/\s+/g, "").toLowerCase();
+    const hiddenByVisibility = style.visibility === "hidden";
+    const hiddenByOpacity = Number(style.opacity || 1) <= 0.01;
+    const hiddenByTransparentPaint =
+      color === "transparent" ||
+      fill === "transparent" ||
+      color === "rgba(0,0,0,0)" ||
+      fill === "rgba(0,0,0,0)";
+    return !(hiddenByVisibility || hiddenByOpacity || hiddenByTransparentPaint);
+  });
 }
 
 function isLabRenderStateHealthy(renderState, extensionMasked) {
@@ -183,7 +207,8 @@ function isLabRenderStateHealthy(renderState, extensionMasked) {
       Number(renderState.maskElementCount || 0) === 0 &&
       !renderState.suspiciousEditableBar &&
       !renderState.suspiciousNativeTextareaMask &&
-      !renderState.suspiciousOverlayDrift
+      !renderState.suspiciousOverlayDrift &&
+      !renderState.suspiciousMaskTextVisible
     );
   }
 
@@ -194,11 +219,12 @@ function isLabRenderStateHealthy(renderState, extensionMasked) {
       !renderState.suspiciousNativeTextareaMask &&
       !renderState.suspiciousHardConcealmentMissing &&
       !renderState.suspiciousOverlayDrift &&
+      !renderState.suspiciousMaskTextVisible &&
       (renderState.maskMode === "native-mask" || Number(renderState.maskElementCount || 0) > 0)
     );
   }
 
-  return Number(renderState.maskElementCount || 0) > 0;
+  return Number(renderState.maskElementCount || 0) > 0 && !renderState.suspiciousMaskTextVisible;
 }
 
 function collectLabCaseEntries() {
