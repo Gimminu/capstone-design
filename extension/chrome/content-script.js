@@ -53,7 +53,7 @@ const MAX_CANDIDATES = 120;
 const MAX_FOREGROUND_CONTAINERS = 5;
 const MAX_BACKGROUND_CONTAINERS = 14;
 const VIEWPORT_BUFFER_PX = 720;
-const SCROLL_REFRESH_TEXT_NODE_LIMIT = 96;
+const SCROLL_REFRESH_TEXT_NODE_LIMIT = 140;
 const SCROLL_SETTLE_REFRESH_DELAY_MS = 110;
 const SCROLL_LATE_REFRESH_DELAY_MS = 340;
 const MAX_ANALYSIS_CONTEXT_LENGTH = 360;
@@ -89,7 +89,7 @@ const SAME_ROUTE_DIRTY_REFRESH_REASONS = new Set([
   "yt-navigate-finish",
   "yt-page-data-updated"
 ]);
-const MAX_DOMAIN_PRIORITY_CANDIDATES = 6;
+const MAX_DOMAIN_PRIORITY_CANDIDATES = 8;
 const MAX_GOOGLE_CANDIDATES_PER_CONTAINER = 16;
 const MAX_SELF_TEST_CASES = 32;
 const MAX_SELF_TEST_HISTORY = 20;
@@ -674,7 +674,7 @@ function getGoogleInteractiveRoot(element) {
     return null;
   }
 
-  return element.closest("button, [role='button'], a[href]");
+  return element.closest("button, [role='button'], a[href], [data-ved]");
 }
 
 function shouldAllowGoogleInteractiveElement(element) {
@@ -953,7 +953,7 @@ function getGoogleSearchAnalysisContainer(element) {
   }
 
   const interactiveRoot = element.closest(
-    "#bres a[href], #bres [role='button'], #botstuff a[href], #botstuff [role='button'], main [role='button']"
+    "#bres a[href], #bres [role='button'], #bres [data-ved], #botstuff a[href], #botstuff [role='button'], #botstuff [data-ved], main [role='button'], main [data-ved]"
   );
   if (
     interactiveRoot instanceof Element &&
@@ -1810,11 +1810,14 @@ function collectGoogleSearchPriorityCandidates(limit = MAX_DOMAIN_PRIORITY_CANDI
     "#bres button",
     "#bres [role='button']",
     "#bres a[href]",
+    "#bres [data-ved]",
     "#botstuff button",
     "#botstuff [role='button']",
     "#botstuff a[href]",
+    "#botstuff [data-ved]",
     "#rhs button",
-    "#rhs [role='button']"
+    "#rhs [role='button']",
+    "#rhs [data-ved]"
   ];
 
   const elements = [];
@@ -6499,7 +6502,7 @@ function runScrollVisibilityRefresh() {
 
     const registeredCount = refreshVisibleCandidateRegistrations({
       markHighSignalDirty: true,
-      highSignalDirtyLimit: 16
+      highSignalDirtyLimit: 32
     });
     if (registeredCount > 0) {
       schedulePipeline("visibility");
