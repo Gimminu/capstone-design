@@ -176,7 +176,8 @@ function getLabCaseRenderState(element, sampleText) {
         state?.overlayRoot?.dataset?.shieldtextFullSpan === "true" &&
           (!fullSpanMaskRect ||
             fullSpanMaskRect.width < Math.max(8, compactLength * 4) ||
-            fullSpanMaskRect.height < Math.max(8, lineHeightPx * 0.55) ||
+            fullSpanMaskCoverageRatio < 0.78 ||
+            fullSpanMaskRect.height < Math.max(8, lineHeightPx * 0.85) ||
             fullSpanMaskVerticalCenterOffsetPx > Math.max(8, lineHeightPx * 0.6))
       ),
       suspiciousMaskTextVisible

@@ -148,7 +148,9 @@ function getEditableFullSpanMaskWidthPx(element, text) {
   const computedStyle = window.getComputedStyle(element);
   const measuredWidth = measureEditableTextWidthPx(text, computedStyle);
   const fontSize = parseFloat(computedStyle.fontSize || "16");
-  const guardPx = Number.isFinite(fontSize) ? Math.max(3, Math.round(fontSize * 0.18)) : 4;
+  const guardPx = Number.isFinite(fontSize)
+    ? Math.max(6, Math.round(fontSize * (shouldUseHardEditableConcealment(element) ? 0.72 : 0.36)))
+    : 8;
   return Math.max(8, measuredWidth + guardPx);
 }
 
@@ -167,6 +169,10 @@ function getEditableFullSpanMaskHeightPx(element) {
     (parseFloat(computedStyle.paddingBottom || "0") || 0);
   const availableHeight = Math.max(0, rect.height - Math.max(0, verticalPadding * 0.35));
   const targetHeight = Math.max(lineHeight * 1.08, Number.isFinite(fontSize) ? fontSize * 1.42 : lineHeight);
+
+  if (isSingleLineEditableElement(element) && rect.height > 0) {
+    return Math.round(Math.max(availableHeight, targetHeight, rect.height));
+  }
 
   if (availableHeight > 0) {
     return Math.round(Math.min(availableHeight, targetHeight));
