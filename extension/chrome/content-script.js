@@ -6408,7 +6408,7 @@ function scheduleSuppressedMutationRefresh() {
       return;
     }
 
-    scheduleScrollVisibilityRefresh();
+    scheduleScrollVisibilityRefresh({ withSettleRefresh: false });
   }, delayMs);
 }
 
@@ -6518,8 +6518,8 @@ function initializeObserver() {
       schedulePipeline("mutation");
     }
 
-    if (sawAddedContent) {
-      scheduleScrollVisibilityRefresh();
+    if (sawAddedContent && !shouldSchedule) {
+      scheduleScrollVisibilityRefresh({ withSettleRefresh: false });
     }
   });
 
