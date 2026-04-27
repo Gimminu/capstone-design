@@ -97,6 +97,9 @@ const FOREGROUND_ANALYZE_TIMEOUT_MS = 900;
 const RECONCILE_ANALYZE_TIMEOUT_MS = 1500;
 const SKIPPED_ANALYSIS_RETRY_BACKOFF_MS = 1200;
 const HIGH_SIGNAL_SKIPPED_RETRY_BACKOFF_MS = 260;
+const MAX_HIGH_SIGNAL_SKIPPED_RETRY_ATTEMPTS = 2;
+const HIGH_SIGNAL_SKIPPED_RETRY_MAX_BACKOFF_MS = 2200;
+const SKIPPED_RETRY_MAX_BACKOFF_MS = 5000;
 const FOREGROUND_BACKEND_BATCH_SIZE = 2;
 const RECONCILE_BACKEND_BATCH_SIZE = 1;
 const BACKEND_WARMUP_TEXTS = ["안녕하세요", "검색 테스트", "청마루 실시간 필터"];
@@ -186,6 +189,7 @@ let scrollVisibilityRefreshSettleTimerId = null;
 let scrollVisibilityRefreshLateTimerId = null;
 let suppressedMutationRefreshTimerId = null;
 let skippedAnalysisRetryTimerId = null;
+let skippedAnalysisRetryDueAt = 0;
 let reconcileFlushTimerId = null;
 let scheduledReconcileDelayMs = 0;
 let isReconcileRunning = false;
@@ -207,6 +211,7 @@ let reconcileOverwriteCount = 0;
 let reconcileUnmaskCount = 0;
 let inputMaskResetCount = 0;
 let skippedHighSignalRetryCount = 0;
+let skippedHighSignalRetrySuppressedCount = 0;
 let managedMutationSkipCount = 0;
 let overlayLayoutReuseCount = 0;
 let overlayLayoutRebuildCount = 0;
@@ -325,6 +330,7 @@ function teardownInvalidatedExtensionContext() {
   if (skippedAnalysisRetryTimerId) {
     window.clearTimeout(skippedAnalysisRetryTimerId);
     skippedAnalysisRetryTimerId = null;
+    skippedAnalysisRetryDueAt = 0;
   }
   SKIPPED_RETRY_NODE_IDS.clear();
   if (navigationPollTimerId) {
@@ -525,6 +531,9 @@ function invalidateAnalysisForSettingsChange() {
     state.lastFingerprint = "";
     state.lastSkippedAnalysisAt = 0;
     state.lastSkippedFingerprint = "";
+    state.lastSkippedRetryBackoffMs = 0;
+    state.lastSkippedRetryCount = 0;
+    state.lastSkippedRetryFingerprint = "";
     state.lastAppliedFingerprint = "";
     state.lastAppliedStage = "";
     state.lastReconcileFingerprint = "";
@@ -542,6 +551,9 @@ function invalidateAnalysisForSettingsChange() {
     state.lastFingerprint = "";
     state.lastSkippedAnalysisAt = 0;
     state.lastSkippedFingerprint = "";
+    state.lastSkippedRetryBackoffMs = 0;
+    state.lastSkippedRetryCount = 0;
+    state.lastSkippedRetryFingerprint = "";
     state.lastAppliedFingerprint = "";
     state.lastAppliedStage = "";
     state.lastReconcileFingerprint = "";
@@ -554,6 +566,12 @@ function invalidateAnalysisForSettingsChange() {
   }
 
   RECONCILE_QUEUE.clear();
+  SKIPPED_RETRY_NODE_IDS.clear();
+  if (skippedAnalysisRetryTimerId) {
+    window.clearTimeout(skippedAnalysisRetryTimerId);
+    skippedAnalysisRetryTimerId = null;
+    skippedAnalysisRetryDueAt = 0;
+  }
   if (reconcileFlushTimerId) {
     window.clearTimeout(reconcileFlushTimerId);
     reconcileFlushTimerId = null;
@@ -797,6 +815,8 @@ function getEditableValueState(element) {
       lastSkippedAnalysisAt: 0,
       lastSkippedFingerprint: "",
       lastSkippedRetryBackoffMs: 0,
+      lastSkippedRetryCount: 0,
+      lastSkippedRetryFingerprint: "",
       lastDecisionKey: "",
       lastAppliedFingerprint: "",
       lastAppliedStage: "",
@@ -856,6 +876,8 @@ function getNodeState(textNode) {
       lastSkippedAnalysisAt: 0,
       lastSkippedFingerprint: "",
       lastSkippedRetryBackoffMs: 0,
+      lastSkippedRetryCount: 0,
+      lastSkippedRetryFingerprint: "",
       lastDecisionKey: "",
       lastAppliedFingerprint: "",
       lastAppliedStage: "",
@@ -2629,6 +2651,8 @@ function markCandidateSettledAfterLowerPriorityApplySkip(candidate) {
   state.lastSkippedAnalysisAt = 0;
   state.lastSkippedFingerprint = "";
   state.lastSkippedRetryBackoffMs = 0;
+  state.lastSkippedRetryCount = 0;
+  state.lastSkippedRetryFingerprint = "";
   DIRTY_NODE_IDS.delete(state.nodeId);
 }
 
@@ -2640,6 +2664,11 @@ function markCandidateApplied(candidate, stage, blocked) {
   candidate.state.lastAppliedFingerprint = String(candidate.fingerprint || "");
   candidate.state.lastAppliedStage = String(stage || "");
   candidate.state.lastAppliedBlocked = Boolean(blocked);
+  candidate.state.lastSkippedAnalysisAt = 0;
+  candidate.state.lastSkippedFingerprint = "";
+  candidate.state.lastSkippedRetryBackoffMs = 0;
+  candidate.state.lastSkippedRetryCount = 0;
+  candidate.state.lastSkippedRetryFingerprint = "";
 
   if (String(stage || "") === "reconcile") {
     candidate.state.lastReconcileFingerprint = String(candidate.fingerprint || "");
@@ -4889,6 +4918,8 @@ function markCandidatesSettled(candidates, generation) {
     candidate.state.lastSkippedAnalysisAt = 0;
     candidate.state.lastSkippedFingerprint = "";
     candidate.state.lastSkippedRetryBackoffMs = 0;
+    candidate.state.lastSkippedRetryCount = 0;
+    candidate.state.lastSkippedRetryFingerprint = "";
     DIRTY_NODE_IDS.delete(candidate.nodeId);
   }
 }
@@ -4945,38 +4976,58 @@ function getCurrentStateFingerprint(state) {
   return "";
 }
 
-function scheduleSkippedAnalysisRetry(candidates, generation) {
-  const retryCandidates = (Array.isArray(candidates) ? candidates : [])
-    .filter((candidate) => candidate?.state && isCandidateGenerationCurrent(candidate, generation));
-  if (retryCandidates.length === 0) {
+function armSkippedAnalysisRetryTimer() {
+  if (SKIPPED_RETRY_NODE_IDS.size === 0) {
+    skippedAnalysisRetryDueAt = 0;
     return;
   }
 
-  for (const candidate of retryCandidates) {
-    SKIPPED_RETRY_NODE_IDS.set(
-      candidate.nodeId,
-      Number(candidate.state?.analysisGeneration || generation || 0)
-    );
+  let nextDueAt = Number.POSITIVE_INFINITY;
+  for (const entry of SKIPPED_RETRY_NODE_IDS.values()) {
+    nextDueAt = Math.min(nextDueAt, Number(entry?.dueAt || 0));
+  }
+
+  if (!Number.isFinite(nextDueAt)) {
+    skippedAnalysisRetryDueAt = 0;
+    return;
+  }
+
+  if (skippedAnalysisRetryTimerId && skippedAnalysisRetryDueAt <= nextDueAt) {
+    return;
   }
 
   if (skippedAnalysisRetryTimerId) {
-    return;
+    window.clearTimeout(skippedAnalysisRetryTimerId);
+    skippedAnalysisRetryTimerId = null;
   }
 
+  skippedAnalysisRetryDueAt = nextDueAt;
+  const delayMs = Math.max(32, nextDueAt - Date.now());
   skippedAnalysisRetryTimerId = window.setTimeout(() => {
     skippedAnalysisRetryTimerId = null;
+    skippedAnalysisRetryDueAt = 0;
     if (extensionContextInvalidated || isUnsupportedPage()) {
       SKIPPED_RETRY_NODE_IDS.clear();
       return;
     }
 
+    const now = Date.now();
     let shouldSchedule = false;
-    for (const [nodeId, retryGeneration] of SKIPPED_RETRY_NODE_IDS.entries()) {
+
+    for (const [nodeId, retryEntry] of SKIPPED_RETRY_NODE_IDS.entries()) {
+      if (Number(retryEntry?.dueAt || 0) > now) {
+        continue;
+      }
+
+      SKIPPED_RETRY_NODE_IDS.delete(nodeId);
       const state = NODE_STATE_BY_ID.get(nodeId) || EDITABLE_VALUE_STATE_BY_ID.get(nodeId);
       if (!state?.lastSkippedFingerprint) {
         continue;
       }
-      if (Number(state.analysisGeneration || 0) !== Number(retryGeneration || 0)) {
+      if (Number(state.analysisGeneration || 0) !== Number(retryEntry?.generation || 0)) {
+        continue;
+      }
+      if (String(state.lastSkippedFingerprint || "") !== String(retryEntry?.fingerprint || "")) {
         continue;
       }
       if (String(state.lastSkippedFingerprint || "") !== getCurrentStateFingerprint(state)) {
@@ -4990,12 +5041,36 @@ function scheduleSkippedAnalysisRetry(candidates, generation) {
       skippedHighSignalRetryCount += 1;
       shouldSchedule = true;
     }
-    SKIPPED_RETRY_NODE_IDS.clear();
 
     if (shouldSchedule) {
       schedulePipeline("visibility");
     }
-  }, HIGH_SIGNAL_SKIPPED_RETRY_BACKOFF_MS + 32);
+
+    armSkippedAnalysisRetryTimer();
+  }, delayMs);
+}
+
+function scheduleSkippedAnalysisRetry(candidates, generation) {
+  const retryCandidates = (Array.isArray(candidates) ? candidates : [])
+    .filter((candidate) => candidate?.state && isCandidateGenerationCurrent(candidate, generation));
+  if (retryCandidates.length === 0) {
+    return;
+  }
+
+  for (const candidate of retryCandidates) {
+    const state = candidate.state;
+    const fingerprint = String(candidate.fingerprint || "");
+    const dueAt = Number(state.lastSkippedAnalysisAt || Date.now()) +
+      Math.max(HIGH_SIGNAL_SKIPPED_RETRY_BACKOFF_MS, Number(state.lastSkippedRetryBackoffMs || 0));
+
+    SKIPPED_RETRY_NODE_IDS.set(candidate.nodeId, {
+      generation: Number(state.analysisGeneration || generation || 0),
+      fingerprint,
+      dueAt
+    });
+  }
+
+  armSkippedAnalysisRetryTimer();
 }
 
 function markSkippedCandidatesForRetryBackoff(analysisUnits, analysisResults, generation) {
@@ -5014,14 +5089,34 @@ function markSkippedCandidatesForRetryBackoff(analysisUnits, analysisResults, ge
         continue;
       }
 
-      candidate.state.lastSkippedAnalysisAt = now;
-      candidate.state.lastSkippedFingerprint = candidate.fingerprint;
-      candidate.state.lastSkippedRetryBackoffMs = isHighSignalRetryCandidate(candidate)
+      const isHighSignal = isHighSignalRetryCandidate(candidate);
+      const previousRetryCount =
+        String(candidate.state.lastSkippedRetryFingerprint || "") === String(candidate.fingerprint || "")
+          ? Number(candidate.state.lastSkippedRetryCount || 0)
+          : 0;
+      const retryCount = previousRetryCount + 1;
+      const baseBackoffMs = isHighSignal
         ? HIGH_SIGNAL_SKIPPED_RETRY_BACKOFF_MS
         : SKIPPED_ANALYSIS_RETRY_BACKOFF_MS;
+      const maxBackoffMs = isHighSignal
+        ? HIGH_SIGNAL_SKIPPED_RETRY_MAX_BACKOFF_MS
+        : SKIPPED_RETRY_MAX_BACKOFF_MS;
+      const backoffMs = Math.min(
+        maxBackoffMs,
+        Math.round(baseBackoffMs * Math.pow(2, Math.max(0, previousRetryCount)))
+      );
+
+      candidate.state.lastSkippedAnalysisAt = now;
+      candidate.state.lastSkippedFingerprint = candidate.fingerprint;
+      candidate.state.lastSkippedRetryBackoffMs = backoffMs;
+      candidate.state.lastSkippedRetryCount = retryCount;
+      candidate.state.lastSkippedRetryFingerprint = candidate.fingerprint;
       DIRTY_NODE_IDS.delete(candidate.nodeId);
-      if (isHighSignalRetryCandidate(candidate)) {
+
+      if (isHighSignal && retryCount <= MAX_HIGH_SIGNAL_SKIPPED_RETRY_ATTEMPTS) {
         highSignalRetryCandidates.push(candidate);
+      } else if (isHighSignal) {
+        skippedHighSignalRetrySuppressedCount += 1;
       }
     }
   });
