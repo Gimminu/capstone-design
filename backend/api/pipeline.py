@@ -790,17 +790,13 @@ class ProfanityPipeline:
 
         if mapped_dictionary_spans:
             effective_flags = self._build_classifier_flags(cls_result, sensitivity)
-            if not self._has_any_flag(effective_flags):
-                effective_flags = {
-                    **effective_flags,
-                    "is_profane": True,
-                }
-            return self._build_result(
-                original_text,
-                cls_result,
-                evidence_spans=mapped_dictionary_spans,
-                override_flags=effective_flags,
-            )
+            if self._has_any_flag(effective_flags):
+                return self._build_result(
+                    original_text,
+                    cls_result,
+                    evidence_spans=mapped_dictionary_spans,
+                    override_flags=effective_flags,
+                )
 
         effective_flags = self._build_classifier_flags(cls_result, sensitivity)
         if _should_force_safe_without_evidence(original_text, sensitivity):

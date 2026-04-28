@@ -221,10 +221,6 @@ function applyNativeFullEditableMask(state) {
     suppressMutationFeedback(140);
   }
 
-  // Chrome applies text-security reliably to text/search inputs, but not to
-  // textarea-based comboboxes such as Google Search. Treat textarea as overlay
-  // only; otherwise state says "masked" while the original value remains shown.
-  if (!(state.element instanceof HTMLInputElement)) return false;
   if (!isSingleLineEditableElement(state.element)) return false;
 
   if (state.overlayRoot?.isConnected) {
@@ -630,10 +626,10 @@ function renderEditableValueOutcome(candidate, outcome, settings) {
   }
 
   const tooltip = buildMaskTooltip(outcome.categories, outcome.reasons, settings);
-  // Keep editable masking on one rendering path. Native text-security is fast
-  // but page/browser dependent, and it can expose the original value during
-  // Google Search textarea/input transitions.
-  const shouldUseNativeFullMask = false;
+  const shouldUseNativeFullMask =
+    settings?.interventionMode !== "hide" &&
+    doSpansCoverFullText(spans, candidate.text) &&
+    applyNativeFullEditableMask(state);
   const decisionKey = JSON.stringify({
     text: candidate.text,
     categories: outcome.categories,
