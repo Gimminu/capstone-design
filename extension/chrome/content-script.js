@@ -110,7 +110,7 @@ const FOREGROUND_STANDALONE_SAFE_CACHE_TTL_MS = 7000;
 const FOREGROUND_CONTEXTUAL_SAFE_CACHE_TTL_MS = 800;
 const RECONCILE_CONTEXTUAL_SAFE_CACHE_TTL_MS = 600;
 const OFFENSIVE_CACHE_TTL_MS = 90000;
-const ANALYSIS_CACHE_SCHEMA_VERSION = "content-v11";
+const ANALYSIS_CACHE_SCHEMA_VERSION = "content-v12";
 const DECISION_STAGE_RANK = Object.freeze({
   foreground: 1,
   reconcile: 2
@@ -186,6 +186,30 @@ const GOOGLE_SFC_TEXT_SELECTOR = [
   "[data-sfc-root='c'] .NDNGvf",
   "[data-sfc-root='c'] .n6owBd",
   "[data-sfc-root='c'] .MFrAxb"
+].join(", ");
+const GOOGLE_HIGH_SIGNAL_TEXT_SELECTOR = [
+  "[role='heading'][data-attrid='title']",
+  "[data-attrid='title'] [role='heading']",
+  "[data-attrid='title']",
+  "main [role='heading']",
+  "main [aria-level]",
+  "main .PZPZlf",
+  "main .B5dxMb",
+  "#rhs [role='heading']",
+  "#rhs [aria-level]",
+  "#rhs [data-attrid='title']",
+  "#rhs .PZPZlf",
+  "#rhs .B5dxMb",
+  "#kp-wp-tab-overview [role='heading']",
+  "#kp-wp-tab-overview [data-attrid='title']",
+  "[data-container-id='main-col'] [role='heading']",
+  "[data-container-id='main-col'] [aria-level]",
+  "[data-container-id='main-col'] .PZPZlf",
+  "[data-sfc-root='c'] [role='heading']",
+  "[data-sfc-root='c'] [aria-level]",
+  "[data-sfc-root='c'] .PZPZlf",
+  ".PZPZlf.ssJ7i",
+  ".PZPZlf.B5dxMb"
 ].join(", ");
 
 let nextTextNodeId = 1;
@@ -1170,8 +1194,12 @@ function getGoogleVisibleAnalysisContainers(limit = MAX_HOT_PATH_CONTAINERS) {
   }
 
   const selectors = [
+    GOOGLE_HIGH_SIGNAL_TEXT_SELECTOR,
     GOOGLE_SFC_CONTAINER_SELECTOR,
     GOOGLE_SFC_TEXT_SELECTOR,
+    "main [data-attrid='title']",
+    "main .PZPZlf",
+    "main .B5dxMb",
     "#search .MjjYud",
     "#search .g",
     "#search .tF2Cxc",
@@ -1193,6 +1221,11 @@ function getGoogleVisibleAnalysisContainers(limit = MAX_HOT_PATH_CONTAINERS) {
     "#bres",
     "g-section-with-header",
     "main [role='button']",
+    "#rhs [role='heading']",
+    "#rhs [aria-level]",
+    "#rhs [data-attrid='title']",
+    "#rhs .PZPZlf",
+    "#rhs .B5dxMb",
     "#rhs [data-attrid]",
     "#rhs .kp-wholepage",
     "#rhs"
@@ -1930,6 +1963,51 @@ function collectGoogleHighSignalInteractiveCandidates(limit = MAX_DOMAIN_PRIORIT
   });
 }
 
+function collectGoogleDirectHighSignalTextCandidates(limit = MAX_DOMAIN_PRIORITY_CANDIDATES * 3) {
+  if (!isGoogleSearchPage()) {
+    return [];
+  }
+
+  const elements = [];
+  const seenElements = new Set();
+
+  for (const element of document.querySelectorAll(GOOGLE_HIGH_SIGNAL_TEXT_SELECTOR)) {
+    if (!(element instanceof Element)) continue;
+    if (seenElements.has(element)) continue;
+    if (!element.isConnected || !isElementVisible(element)) continue;
+    if (!isElementNearViewport(element.getBoundingClientRect())) continue;
+
+    const text = getElementAnalysisText(element);
+    if (!text || !HIGH_SIGNAL_PROFANITY_PATTERN.test(text)) continue;
+    if (SAFE_BROWSER_UI_LABELS.has(normalizeLabel(text))) continue;
+
+    seenElements.add(element);
+    elements.push(element);
+    if (elements.length >= limit * 2) {
+      break;
+    }
+  }
+
+  elements.sort((left, right) => {
+    const leftRect = left.getBoundingClientRect();
+    const rightRect = right.getBoundingClientRect();
+    if (leftRect.top !== rightRect.top) {
+      return leftRect.top - rightRect.top;
+    }
+    return leftRect.left - rightRect.left;
+  });
+
+  return collectTextCandidatesFromElements(elements, limit, {
+    perElementLimit: 3,
+    candidateFilter(candidate) {
+      const text = normalizeText(candidate?.text || "");
+      return Boolean(text) &&
+        HIGH_SIGNAL_PROFANITY_PATTERN.test(text) &&
+        isGoogleVisibleHighSignalCandidate(candidate);
+    }
+  });
+}
+
 function collectGoogleVisibleHighSignalTextCandidates(limit = MAX_DOMAIN_PRIORITY_CANDIDATES * 3) {
   if (!isGoogleSearchPage()) {
     return [];
@@ -2029,8 +2107,17 @@ function collectGoogleSearchPriorityCandidates(limit = MAX_DOMAIN_PRIORITY_CANDI
   }
 
   const selectors = [
+    GOOGLE_HIGH_SIGNAL_TEXT_SELECTOR,
     GOOGLE_SFC_TEXT_SELECTOR,
     GOOGLE_SFC_CONTAINER_SELECTOR,
+    "main [data-attrid='title']",
+    "main .PZPZlf",
+    "main .B5dxMb",
+    "#rhs [role='heading']",
+    "#rhs [aria-level]",
+    "#rhs [data-attrid='title']",
+    "#rhs .PZPZlf",
+    "#rhs .B5dxMb",
     "#rso h3",
     "#rso [role='heading']",
     "#rso [aria-level='3']",
@@ -2091,6 +2178,15 @@ function collectGoogleSearchPriorityCandidates(limit = MAX_DOMAIN_PRIORITY_CANDI
 
   const candidates = [];
   const seenNodeIds = new Set();
+
+  for (const candidate of collectGoogleDirectHighSignalTextCandidates(limit * 2)) {
+    if (seenNodeIds.has(candidate.nodeId)) continue;
+    seenNodeIds.add(candidate.nodeId);
+    candidates.push(candidate);
+    if (candidates.length >= limit * 2) {
+      return candidates;
+    }
+  }
 
   for (const candidate of collectGoogleHighSignalInteractiveCandidates(limit)) {
     if (seenNodeIds.has(candidate.nodeId)) continue;
@@ -2262,6 +2358,10 @@ function getCandidateUrgency(candidate, hints) {
     score += 6;
   }
 
+  if (isGoogleVisibleHighSignalCandidate(candidate)) {
+    score += 12;
+  }
+
   const element = candidate?.element;
   if (element instanceof Element) {
     if (element.matches("h3, [role='heading']") || element.closest("h3, [role='heading']")) {
@@ -2423,6 +2523,10 @@ function shouldPreferStandaloneAnalysis(candidate) {
   }
 
   if (isGoogleSearchPage()) {
+    if (isGoogleVisibleHighSignalCandidate(candidate) && isShortHighSignalCandidate(candidate)) {
+      return true;
+    }
+
     if (
       candidate.element instanceof Element &&
       shouldAllowGoogleInteractiveElement(candidate.element) &&
@@ -2511,7 +2615,9 @@ function isGooglePriorityCandidate(candidate) {
   const element = candidate?.element;
   if (!(element instanceof Element)) return false;
 
-  const inSearchSurface = element.closest("#search, main, [role='main']");
+  const inSearchSurface = element.closest(
+    "#search, #rso, main, [role='main'], #rhs, #bres, #botstuff, [data-container-id='main-col'], [data-sfc-root='c']"
+  );
   if (!inSearchSurface) return false;
 
   if (candidate?.candidateKind === "editable-value") {
