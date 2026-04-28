@@ -172,6 +172,9 @@ function getEditableFullSpanMaskHeightPx(element) {
   const targetHeight = Math.max(lineHeight * 1.08, Number.isFinite(fontSize) ? fontSize * 1.42 : lineHeight);
 
   if (isSingleLineEditableElement(element) && rect.height > 0) {
+    if (shouldUseHardEditableConcealment(element)) {
+      return Math.round(Math.min(rect.height, targetHeight));
+    }
     return Math.round(Math.max(availableHeight, targetHeight, rect.height));
   }
 
@@ -221,6 +224,7 @@ function applyNativeFullEditableMask(state) {
     suppressMutationFeedback(140);
   }
 
+  if (!(state.element instanceof HTMLInputElement)) return false;
   if (!isSingleLineEditableElement(state.element)) return false;
 
   if (state.overlayRoot?.isConnected) {
@@ -248,9 +252,48 @@ function applyNativeFullEditableMask(state) {
 }
 
 function getEditableOverlayHost(element) {
-  // Fixed overlays are more stable for search inputs/combobox textareas whose
-  // parent layout can move independently during browser or SPA UI transitions.
-  return document.body || document.documentElement;
+  if (!shouldUseHardEditableConcealment(element)) {
+    return document.body || document.documentElement;
+  }
+
+  if (!(element instanceof Element)) {
+    return document.body || document.documentElement;
+  }
+
+  const elementRect = element.getBoundingClientRect();
+  let current = element.parentElement;
+
+  for (let depth = 0; depth < 8 && current && current !== document.body && current !== document.documentElement; depth += 1) {
+    if (!(current instanceof HTMLElement)) {
+      current = current.parentElement;
+      continue;
+    }
+
+    const style = window.getComputedStyle(current);
+    if (style.display === "contents") {
+      current = current.parentElement;
+      continue;
+    }
+
+    const rect = current.getBoundingClientRect();
+    const containsElement =
+      rect.width >= elementRect.width * 0.9 &&
+      rect.height >= Math.min(elementRect.height, 1) &&
+      rect.left <= elementRect.left + 2 &&
+      rect.top <= elementRect.top + 2 &&
+      rect.right >= elementRect.right - 2 &&
+      rect.bottom >= elementRect.bottom - 2;
+
+    if (containsElement) {
+      return current;
+    }
+
+    current = current.parentElement;
+  }
+
+  return element.parentElement instanceof HTMLElement
+    ? element.parentElement
+    : document.body || document.documentElement;
 }
 
 function ensureEditableOverlayHost(state) {
@@ -351,20 +394,32 @@ function syncEditableOverlayLayout(state) {
       : overlayHost instanceof Element
       ? overlayHost.getBoundingClientRect()
       : { left: 0, top: 0 };
+  const hostScrollLeft =
+    overlayHost === document.body || overlayHost === document.documentElement
+      ? 0
+      : Math.round(Number(overlayHost?.scrollLeft || 0));
+  const hostScrollTop =
+    overlayHost === document.body || overlayHost === document.documentElement
+      ? 0
+      : Math.round(Number(overlayHost?.scrollTop || 0));
   const isSingleLineEditable = isSingleLineEditableElement(element);
   const computedLineHeight = style.lineHeight || "normal";
   const overlayWidth = Math.max(rect.width, isSingleLineEditable ? rect.width : element.scrollWidth || 0);
   const overlayHeight = Math.max(rect.height, isSingleLineEditable ? rect.height : element.scrollHeight || 0);
+  const overlayLeft = Math.round(rect.left - hostRect.left + hostScrollLeft);
+  const overlayTop = Math.round(rect.top - hostRect.top + hostScrollTop);
   const layoutKey = JSON.stringify({
     mode: state.overlayMode || "",
-    left: Math.round(rect.left - hostRect.left),
-    top: Math.round(rect.top - hostRect.top),
+    left: overlayLeft,
+    top: overlayTop,
     width: Math.round(rect.width),
     height: Math.round(rect.height),
     overlayWidth: Math.round(overlayWidth),
     overlayHeight: Math.round(overlayHeight),
     scrollLeft: Math.round(Number(element.scrollLeft || 0)),
-    scrollTop: Math.round(Number(element.scrollTop || 0))
+    scrollTop: Math.round(Number(element.scrollTop || 0)),
+    hostScrollLeft,
+    hostScrollTop
   });
 
   overlayRoot.style.display = "block";
@@ -382,8 +437,8 @@ function syncEditableOverlayLayout(state) {
   overlayRoot.style.setProperty("z-index", "2147483647", "important");
   overlayRoot.style.setProperty("pointer-events", "none", "important");
   overlayRoot.style.isolation = "isolate";
-  overlayRoot.style.left = `${Math.round(rect.left - hostRect.left)}px`;
-  overlayRoot.style.top = `${Math.round(rect.top - hostRect.top)}px`;
+  overlayRoot.style.left = `${overlayLeft}px`;
+  overlayRoot.style.top = `${overlayTop}px`;
   overlayRoot.style.width = `${Math.round(rect.width)}px`;
   overlayRoot.style.height = `${Math.round(rect.height)}px`;
   overlayRoot.style.padding = "0";

@@ -62,7 +62,7 @@ const MIN_ANALYSIS_CONTEXT_LENGTH = 24;
 const MAX_ANALYSIS_CONTAINER_ASCENT = 5;
 const ANALYSIS_CACHE_LIMIT = 500;
 const MAX_DIRTY_TEXT_NODES_PER_MUTATION = 80;
-const MAX_INITIAL_TEXT_NODES = 180;
+const MAX_INITIAL_TEXT_NODES = 260;
 const HOT_PATH_WORKER_TIMEOUT_MS = 90;
 const HOT_PATH_WORKER_INIT_TIMEOUT_MS = 900;
 const HOT_PATH_WORKER_BACKOFF_MS = 8000;
@@ -73,10 +73,10 @@ const RECONCILE_FLUSH_DELAY_MS = 20;
 const RECONCILE_FAST_FLUSH_DELAY_MS = 0;
 const RECONCILE_CHUNK_SIZE = 2;
 const MAX_FOREGROUND_CANDIDATES = 12;
-const MAX_FOREGROUND_WAVE_CANDIDATES = 6;
-const MAX_FOREGROUND_WAVE_CONTAINERS = 3;
+const MAX_FOREGROUND_WAVE_CANDIDATES = 8;
+const MAX_FOREGROUND_WAVE_CONTAINERS = 4;
 const MAX_BACKGROUND_CANDIDATES = 16;
-const MAX_HOT_PATH_CONTAINERS = 6;
+const MAX_HOT_PATH_CONTAINERS = 8;
 const INITIAL_EDITABLE_PASS_LIMIT = 2;
 const STARTUP_FOLLOWUP_DELAYS_MS = [48, 180, 420, 900];
 const ROUTE_CHANGE_FOLLOWUP_DELAYS_MS = [24, 80, 220, 520, 1100, 1800];
@@ -91,7 +91,7 @@ const SAME_ROUTE_DIRTY_REFRESH_REASONS = new Set([
   "yt-navigate-finish",
   "yt-page-data-updated"
 ]);
-const MAX_DOMAIN_PRIORITY_CANDIDATES = 8;
+const MAX_DOMAIN_PRIORITY_CANDIDATES = 10;
 const MAX_GOOGLE_CANDIDATES_PER_CONTAINER = 16;
 const MAX_SELF_TEST_CASES = 32;
 const MAX_SELF_TEST_HISTORY = 20;
@@ -979,7 +979,7 @@ function getGoogleSearchAnalysisContainer(element) {
 
   return (
     element.closest(
-      "#search .MjjYud, #search .g, #search .tF2Cxc, #search .yuRUbf, #search .ULSxyf, #botstuff, #bres, g-section-with-header, #rhs [data-attrid], #rhs .kp-wholepage, #rhs"
+      "#search .MjjYud, #search .g, #search .tF2Cxc, #search .yuRUbf, #search .ULSxyf, #rso .MjjYud, #rso .g, #rso .tF2Cxc, #rso .ULSxyf, #rso [data-content-feature], #rso [data-sokoban-container], #rso [data-attrid], #rso .wDYxhc, #rso .kp-wholepage, #botstuff, #bres, g-section-with-header, #rhs [data-attrid], #rhs .kp-wholepage, #rhs"
     ) ||
     null
   );
@@ -1064,6 +1064,15 @@ function getGoogleVisibleAnalysisContainers(limit = MAX_HOT_PATH_CONTAINERS) {
     "#search .g",
     "#search .tF2Cxc",
     "#search .ULSxyf",
+    "#rso .MjjYud",
+    "#rso .g",
+    "#rso .tF2Cxc",
+    "#rso .ULSxyf",
+    "#rso [data-content-feature]",
+    "#rso [data-sokoban-container]",
+    "#rso [data-attrid]",
+    "#rso .wDYxhc",
+    "#rso .kp-wholepage",
     "#bres a[href]",
     "#bres [role='button']",
     "#botstuff a[href]",
@@ -1809,6 +1818,21 @@ function collectGoogleSearchPriorityCandidates(limit = MAX_DOMAIN_PRIORITY_CANDI
   }
 
   const selectors = [
+    "#rso h3",
+    "#rso [role='heading']",
+    "#rso [aria-level='3']",
+    "#rso a[href] h3",
+    "#rso .LC20lb",
+    "#rso .DKV0Md",
+    "#rso .VwiC3b",
+    "#rso .MUxGbd",
+    "#rso .yXK7lf",
+    "#rso [data-sncf]",
+    "#rso [data-snf]",
+    "#rso [data-content-feature]",
+    "#rso [data-sokoban-container]",
+    "#rso [data-attrid]",
+    "#rso .wDYxhc",
     "#search h3",
     "#search [role='heading']",
     "#search [aria-level='3']",
@@ -2022,7 +2046,7 @@ function getCandidateUrgency(candidate, hints) {
       score += 8;
     }
     if (
-      element.closest(".VwiC3b, .MUxGbd, [data-sncf], [data-snf], [data-content-feature='1']")
+      element.closest(".VwiC3b, .MUxGbd, [data-sncf], [data-snf], [data-content-feature='1'], [data-sokoban-container], .wDYxhc")
     ) {
       score += 3;
     }
@@ -2263,7 +2287,7 @@ function isGooglePriorityCandidate(candidate) {
   }
 
   if (
-    element.closest(".VwiC3b, .MUxGbd, [data-sncf], [data-snf], [data-content-feature='1']")
+    element.closest(".VwiC3b, .MUxGbd, [data-sncf], [data-snf], [data-content-feature='1'], [data-sokoban-container], .wDYxhc")
   ) {
     return true;
   }
@@ -2290,7 +2314,7 @@ function isGoogleSnippetCandidate(candidate) {
   }
 
   return Boolean(
-    element.closest(".VwiC3b, .MUxGbd, [data-sncf], [data-snf], [data-content-feature='1']")
+    element.closest(".VwiC3b, .MUxGbd, [data-sncf], [data-snf], [data-content-feature='1'], [data-sokoban-container], .wDYxhc")
   );
 }
 
@@ -2767,7 +2791,7 @@ function isGoogleMaskTargetElement(element) {
     return true;
   }
 
-  if (element.closest(".VwiC3b, .MUxGbd, [data-sncf], [data-snf], [data-content-feature='1']")) {
+  if (element.closest(".VwiC3b, .MUxGbd, [data-sncf], [data-snf], [data-content-feature='1'], [data-sokoban-container], .wDYxhc")) {
     return true;
   }
 
@@ -6208,7 +6232,7 @@ function scheduleStartupFollowupPipelines() {
       const registeredCount = refreshVisibleCandidateRegistrations({
         markDirty: false,
         markHighSignalDirty: true,
-        highSignalDirtyLimit: 12
+        highSignalDirtyLimit: 32
       });
       if (registeredCount > 0) {
         schedulePipeline("visibility");
@@ -6882,7 +6906,7 @@ async function bootstrap() {
   refreshVisibleCandidateRegistrations({
     markDirty: true,
     markHighSignalDirty: true,
-    highSignalDirtyLimit: 16
+    highSignalDirtyLimit: 32
   });
   scheduleInitialEditablePass();
   scheduleStartupFollowupPipelines();
