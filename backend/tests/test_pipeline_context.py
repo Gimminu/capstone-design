@@ -271,6 +271,17 @@ class PipelineContextTests(unittest.TestCase):
         self.assertTrue(high["is_offensive"])
         self.assertEqual([span["text"] for span in high["evidence_spans"]], ["최악"])
 
+    def test_low_sensitivity_does_not_force_dictionary_only_hits(self):
+        pipeline = self.make_pipeline()
+
+        relaxed = pipeline.analyze("ssibal", sensitivity=20)
+        default = pipeline.analyze("ssibal", sensitivity=60)
+
+        self.assertFalse(relaxed["is_offensive"])
+        self.assertEqual(relaxed["evidence_spans"], [])
+        self.assertTrue(default["is_offensive"])
+        self.assertEqual([span["text"] for span in default["evidence_spans"]], ["ssibal"])
+
     def test_explicit_dictionary_definition_is_blocked_at_default_sensitivity(self):
         pipeline = self.make_pipeline()
 
