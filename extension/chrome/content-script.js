@@ -714,6 +714,15 @@ async function loadSettings(options = {}) {
   return settingsLoadPromise;
 }
 
+function shouldForceSettingsLoadForRun(runReason) {
+  return (
+    runReason === "settings-updated" ||
+    runReason === "manual" ||
+    runReason === "manual-request" ||
+    runReason === "manual-request-after-inject"
+  );
+}
+
 function isElementVisible(element) {
   if (!(element instanceof Element)) return false;
 
@@ -1971,18 +1980,29 @@ function collectGoogleDirectHighSignalTextCandidates(limit = MAX_DOMAIN_PRIORITY
   const elements = [];
   const seenElements = new Set();
 
-  for (const element of document.querySelectorAll(GOOGLE_HIGH_SIGNAL_TEXT_SELECTOR)) {
-    if (!(element instanceof Element)) continue;
-    if (seenElements.has(element)) continue;
-    if (!element.isConnected || !isElementVisible(element)) continue;
-    if (!isElementNearViewport(element.getBoundingClientRect())) continue;
+  for (const selector of [
+    GOOGLE_HIGH_SIGNAL_TEXT_SELECTOR,
+    GOOGLE_SFC_TEXT_SELECTOR,
+    "#search h3, #search [role='heading'], #rso h3, #rso [role='heading']",
+    "#bres [role='heading'], #botstuff [role='heading']"
+  ]) {
+    for (const element of document.querySelectorAll(selector)) {
+      if (!(element instanceof Element)) continue;
+      if (seenElements.has(element)) continue;
+      if (!element.isConnected || !isElementVisible(element)) continue;
+      if (!isElementNearViewport(element.getBoundingClientRect())) continue;
 
-    const text = getElementAnalysisText(element);
-    if (!text || !HIGH_SIGNAL_PROFANITY_PATTERN.test(text)) continue;
-    if (SAFE_BROWSER_UI_LABELS.has(normalizeLabel(text))) continue;
+      const text = getElementAnalysisText(element);
+      if (!text || !HIGH_SIGNAL_PROFANITY_PATTERN.test(text)) continue;
+      if (SAFE_BROWSER_UI_LABELS.has(normalizeLabel(text))) continue;
 
-    seenElements.add(element);
-    elements.push(element);
+      seenElements.add(element);
+      elements.push(element);
+      if (elements.length >= limit * 2) {
+        break;
+      }
+    }
+
     if (elements.length >= limit * 2) {
       break;
     }
@@ -6189,12 +6209,13 @@ async function executePipeline(runReason) {
   const startedAt = performance.now();
 
   try {
-    const settings = await loadSettings();
+    const settings = await loadSettings({ force: shouldForceSettingsLoadForRun(runReason) });
     const activeSettingsRevision = settingsRevision;
     const hostname = location.hostname || "unknown";
 
     if (!settings.enabled) {
       restoreAllRenderedContent();
+      cancelScheduledPipeline();
 
       const payload = buildPayload([], 0, 0);
       const decision = {
@@ -6236,6 +6257,7 @@ async function executePipeline(runReason) {
 
     if (isFilteringSuppressedBySensitivity(settings)) {
       restoreAllRenderedContent();
+      cancelScheduledPipeline();
 
       const payload = buildPayload([], 0, 0);
       const decision = {
@@ -6816,6 +6838,16 @@ function schedulePipeline(reason) {
       handleScheduledPipelineError(reason, error);
     });
   }, delay);
+}
+
+function cancelScheduledPipeline() {
+  if (debounceTimerId) {
+    window.clearTimeout(debounceTimerId);
+    debounceTimerId = null;
+  }
+  scheduledPipelineReason = "";
+  scheduledPipelineDeadlineMs = 0;
+  queuedReason = null;
 }
 
 function scheduleStartupFollowupPipelines() {
@@ -7484,6 +7516,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   restoreAllRenderedContent();
 
   if (nextSettings.enabled === false) {
+    cancelScheduledPipeline();
     scheduleHotPathStatsPersist({
       enabled: false,
       runReason: "settings-updated",
@@ -7496,6 +7529,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 
   if (isFilteringSuppressedBySensitivity(nextSettings)) {
+    cancelScheduledPipeline();
     scheduleHotPathStatsPersist({
       enabled: true,
       runReason: "settings-updated",
