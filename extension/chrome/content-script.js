@@ -160,6 +160,33 @@ const SAFE_BROWSER_UI_LABELS = new Set([
 const HIGH_SIGNAL_PROFANITY_PATTERN =
   /(씨[이\s]*발|시[이\s]*발|씨[이\s]*팔|시[이\s]*팔|ㅅㅂ|ㅆㅂ|병[.\s]*신|ㅂㅅ|지[이\s]*랄|ㅈㄹ|존\s*나|ㅈㄴ|좆|좇|씹|개[새세][끼키]|꺼[져저]|닥[쳐치]|죽어|뒤져|느[금끔]마|니[금끔]마|미친[놈년새]?|(?<![A-Za-z])(?:ssibal|(?<!kapil\s)sibal|tlqkf|qudtls|byungsin|gaesaekki|gaesaek|jiral|jonna|nigaumma|negeumma|fuck(?:ing|er|ed)?|shit(?:ty|head|s)?|bitch(?:es)?|ass[\s_-]*hole|bastard(?:s)?|mother[\s_-]*fucker|dick|pussy|slut|whore)(?![A-Za-z]))/i;
 const HIGH_SIGNAL_PROFANITY_SPAN_PATTERN = new RegExp(HIGH_SIGNAL_PROFANITY_PATTERN.source, "gi");
+const GOOGLE_SFC_CONTAINER_SELECTOR = [
+  "[data-container-id='main-col']",
+  "[data-container-id='main-col'] .n6owBd",
+  "[data-container-id='main-col'] .MFrAxb",
+  "[data-container-id='main-col'] .EJw9bc",
+  "[data-container-id='main-col'] .jydCyd",
+  "[data-sfc-root='c'] .n6owBd",
+  "[data-sfc-root='c'] .MFrAxb",
+  "[data-sfc-root='c'] .EJw9bc",
+  "[data-sfc-root='c'] .jydCyd",
+  ".mZJni.Dn7Fzd",
+  ".n6owBd.awi2gc"
+].join(", ");
+const GOOGLE_SFC_TEXT_SELECTOR = [
+  "[data-container-id='main-col'] [data-subtree]",
+  "[data-container-id='main-col'] mark.HxTRcb",
+  "[data-container-id='main-col'] .HxTRcb",
+  "[data-container-id='main-col'] .NDNGvf",
+  "[data-container-id='main-col'] .n6owBd",
+  "[data-container-id='main-col'] .MFrAxb",
+  "[data-sfc-root='c'] [data-subtree]",
+  "[data-sfc-root='c'] mark.HxTRcb",
+  "[data-sfc-root='c'] .HxTRcb",
+  "[data-sfc-root='c'] .NDNGvf",
+  "[data-sfc-root='c'] .n6owBd",
+  "[data-sfc-root='c'] .MFrAxb"
+].join(", ");
 
 let nextTextNodeId = 1;
 let nextEditableValueId = 1;
@@ -738,6 +765,32 @@ function getGoogleInteractiveRoot(element) {
   return element.closest("button, [role='button'], a[href], [data-ved]");
 }
 
+function getGoogleSfcAnalysisContainer(element) {
+  if (!isGoogleSearchPage() || !(element instanceof Element)) {
+    return null;
+  }
+
+  const sourceCard = element.closest(".MFrAxb, .jydCyd");
+  if (sourceCard instanceof Element && sourceCard.closest("[data-sfc-root='c'], [data-container-id='main-col']")) {
+    return sourceCard;
+  }
+
+  const answerBlock = element.closest(".n6owBd, .mZJni.Dn7Fzd, [data-container-id='main-col']");
+  if (answerBlock instanceof Element && answerBlock.closest("[data-sfc-root='c'], [data-container-id='main-col']")) {
+    return answerBlock;
+  }
+
+  return null;
+}
+
+function isGoogleSfcTextElement(element) {
+  if (!isGoogleSearchPage() || !(element instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(element.closest(GOOGLE_SFC_TEXT_SELECTOR));
+}
+
 function shouldAllowGoogleInteractiveElement(element) {
   const interactiveRoot = getGoogleInteractiveRoot(element);
   if (!(interactiveRoot instanceof Element)) {
@@ -1013,6 +1066,11 @@ function getGoogleSearchAnalysisContainer(element) {
     return null;
   }
 
+  const sfcContainer = getGoogleSfcAnalysisContainer(element);
+  if (sfcContainer) {
+    return sfcContainer;
+  }
+
   const interactiveRoot = element.closest(
     "#bres a[href], #bres [role='button'], #bres [data-ved], #botstuff a[href], #botstuff [role='button'], #botstuff [data-ved], main [role='button'], main [data-ved]"
   );
@@ -1045,6 +1103,12 @@ function getGoogleHighSignalInteractiveContainers(limit = MAX_DOMAIN_PRIORITY_CA
   }
 
   const selectors = [
+    "[data-container-id='main-col'] a[href]",
+    "[data-container-id='main-col'] [role='button']",
+    "[data-container-id='main-col'] [data-ved]",
+    "[data-sfc-root='c'] a[href]",
+    "[data-sfc-root='c'] [role='button']",
+    "[data-sfc-root='c'] [data-ved]",
     "#bres a[href]",
     "#bres [role='button']",
     "#botstuff a[href]",
@@ -1106,6 +1170,8 @@ function getGoogleVisibleAnalysisContainers(limit = MAX_HOT_PATH_CONTAINERS) {
   }
 
   const selectors = [
+    GOOGLE_SFC_CONTAINER_SELECTOR,
+    GOOGLE_SFC_TEXT_SELECTOR,
     "#search .MjjYud",
     "#search .g",
     "#search .tF2Cxc",
@@ -1793,6 +1859,12 @@ function collectGoogleHighSignalInteractiveCandidates(limit = MAX_DOMAIN_PRIORIT
   }
 
   const selectors = [
+    "[data-container-id='main-col'] a[href]",
+    "[data-container-id='main-col'] [role='button']",
+    "[data-container-id='main-col'] [data-ved]",
+    "[data-sfc-root='c'] a[href]",
+    "[data-sfc-root='c'] [role='button']",
+    "[data-sfc-root='c'] [data-ved]",
     "main button",
     "main [role='button']",
     "main a[href]",
@@ -1865,7 +1937,17 @@ function collectGoogleVisibleHighSignalTextCandidates(limit = MAX_DOMAIN_PRIORIT
 
   const roots = [];
   const seenRoots = new Set();
-  for (const selector of ["#rso", "#search", "main", "[role='main']", "#bres", "#botstuff", "#rhs"]) {
+  for (const selector of [
+    "[data-container-id='main-col']",
+    "[data-sfc-root='c']",
+    "#rso",
+    "#search",
+    "main",
+    "[role='main']",
+    "#bres",
+    "#botstuff",
+    "#rhs"
+  ]) {
     for (const root of document.querySelectorAll(selector)) {
       if (!(root instanceof Element)) continue;
       if (seenRoots.has(root)) continue;
@@ -1947,6 +2029,8 @@ function collectGoogleSearchPriorityCandidates(limit = MAX_DOMAIN_PRIORITY_CANDI
   }
 
   const selectors = [
+    GOOGLE_SFC_TEXT_SELECTOR,
+    GOOGLE_SFC_CONTAINER_SELECTOR,
     "#rso h3",
     "#rso [role='heading']",
     "#rso [aria-level='3']",
@@ -2291,7 +2375,7 @@ function isGoogleHighSignalSurfaceCandidate(candidate) {
   }
 
   if (
-    element.closest("#search, main, [role='main']") &&
+    element.closest("#search, main, [role='main'], [data-container-id='main-col'], [data-sfc-root='c']") &&
     isGoogleMaskTargetElement(element)
   ) {
     return true;
@@ -2320,7 +2404,7 @@ function isGoogleVisibleHighSignalCandidate(candidate) {
   }
 
   if (
-    element.closest("#search, #rso, main, [role='main'], #bres, #botstuff, #rhs") &&
+    element.closest("#search, #rso, main, [role='main'], #bres, #botstuff, #rhs, [data-container-id='main-col'], [data-sfc-root='c']") &&
     isGoogleMaskTargetElement(element)
   ) {
     return true;
@@ -2434,6 +2518,10 @@ function isGooglePriorityCandidate(candidate) {
     return true;
   }
 
+  if (isGoogleSfcTextElement(element)) {
+    return true;
+  }
+
   if (
     shouldAllowGoogleInteractiveElement(element) &&
     HIGH_SIGNAL_PROFANITY_PATTERN.test(candidate?.text || "")
@@ -2470,7 +2558,7 @@ function isGoogleHeadingCandidate(candidate) {
 
   return Boolean(
     element.matches("h3, [role='heading']") ||
-      element.closest("h3, [role='heading'], .LC20lb, .DKV0Md, .yXK7lf")
+      element.closest("h3, [role='heading'], .LC20lb, .DKV0Md, .yXK7lf, .NDNGvf")
   );
 }
 
@@ -2481,7 +2569,8 @@ function isGoogleSnippetCandidate(candidate) {
   }
 
   return Boolean(
-    element.closest(".VwiC3b, .MUxGbd, [data-sncf], [data-snf], [data-content-feature='1'], [data-sokoban-container], .wDYxhc")
+    element.closest(".VwiC3b, .MUxGbd, [data-sncf], [data-snf], [data-content-feature='1'], [data-sokoban-container], .wDYxhc") ||
+      isGoogleSfcTextElement(element)
   );
 }
 
@@ -2969,6 +3058,10 @@ function isGoogleMaskTargetElement(element) {
 
   if (element.closest("cite, [role='navigation'], nav")) {
     return false;
+  }
+
+  if (isGoogleSfcTextElement(element)) {
+    return true;
   }
 
   if (element.matches("h1, h2, h3, h4, [role='heading']")) {
