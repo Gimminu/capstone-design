@@ -190,6 +190,18 @@ function buildEditableVisibleMaskReplacement(text) {
   return "*".repeat(Math.max(2, Math.min(12, graphemeCount || 2)));
 }
 
+function shouldUseFixedEditableTokenOverlay(element, settings) {
+  return settings?.interventionMode !== "hide" && shouldUseHardEditableConcealment(element);
+}
+
+function buildEditableFixedTokenReplacement(text, spans) {
+  const firstSpan = Array.isArray(spans) && spans.length > 0 ? spans[0] : null;
+  const sourceText = firstSpan
+    ? String(text || "").slice(firstSpan.start, firstSpan.end)
+    : String(text || "");
+  return buildEditableVisibleMaskReplacement(sourceText);
+}
+
 function concealEditableSourceText(state) {
   if (!state?.element) return;
   if (typeof suppressMutationFeedback === "function") {
@@ -367,6 +379,7 @@ function syncEditableOverlayLayout(state) {
       ? 0
       : Math.round(Number(overlayHost?.scrollTop || 0));
   const isSingleLineEditable = isSingleLineEditableElement(element);
+  const isFixedTokenOverlay = state.overlayRoot.dataset.shieldtextFixedEditable === "true";
   const computedLineHeight = style.lineHeight || "normal";
   const overlayWidth = Math.max(rect.width, isSingleLineEditable ? rect.width : element.scrollWidth || 0);
   const overlayHeight = Math.max(rect.height, isSingleLineEditable ? rect.height : element.scrollHeight || 0);
@@ -378,10 +391,10 @@ function syncEditableOverlayLayout(state) {
     top: overlayTop,
     width: Math.round(rect.width),
     height: Math.round(rect.height),
-    overlayWidth: Math.round(overlayWidth),
-    overlayHeight: Math.round(overlayHeight),
-    scrollLeft: Math.round(Number(element.scrollLeft || 0)),
-    scrollTop: Math.round(Number(element.scrollTop || 0)),
+    overlayWidth: isFixedTokenOverlay ? Math.round(rect.width) : Math.round(overlayWidth),
+    overlayHeight: isFixedTokenOverlay ? Math.round(rect.height) : Math.round(overlayHeight),
+    scrollLeft: isFixedTokenOverlay ? 0 : Math.round(Number(element.scrollLeft || 0)),
+    scrollTop: isFixedTokenOverlay ? 0 : Math.round(Number(element.scrollTop || 0)),
     hostScrollLeft,
     hostScrollTop
   });
@@ -411,7 +424,7 @@ function syncEditableOverlayLayout(state) {
   overlayRoot.style.borderRadius = style.borderRadius;
   overlayRoot.style.overflow = "hidden";
 
-  overlayContent.style.display = isSingleLineEditable ? "flex" : "block";
+  overlayContent.style.display = isSingleLineEditable || isFixedTokenOverlay ? "flex" : "block";
   overlayContent.style.position = "absolute";
   overlayContent.style.left = "0";
   overlayContent.style.top = "0";
@@ -440,23 +453,27 @@ function syncEditableOverlayLayout(state) {
   overlayContent.style.writingMode = style.writingMode;
   overlayContent.style.color = overlayTextColor || style.color;
   overlayContent.style.webkitTextFillColor = overlayTextFillColor || overlayTextColor || style.color;
-  overlayContent.style.alignItems = isSingleLineEditable ? "center" : "";
+  overlayContent.style.alignItems = isSingleLineEditable || isFixedTokenOverlay ? "center" : "";
   overlayContent.style.flexWrap = "nowrap";
-  overlayContent.style.whiteSpace = isSingleLineEditable
+  overlayContent.style.whiteSpace = isSingleLineEditable || isFixedTokenOverlay
     ? "pre"
     : element instanceof HTMLTextAreaElement
       ? "pre-wrap"
       : "pre";
 
-  if (isSingleLineEditable) {
+  if (isSingleLineEditable || isFixedTokenOverlay) {
     overlayContent.style.height = `${Math.round(rect.height)}px`;
     overlayContent.style.minHeight = `${Math.round(rect.height)}px`;
   }
 
-  overlayContent.style.width = `${Math.round(overlayWidth)}px`;
-  overlayContent.style.minWidth = `${Math.round(overlayWidth)}px`;
-  overlayContent.style.minHeight = `${Math.round(overlayHeight)}px`;
-  overlayContent.style.transform = `translate3d(${-Math.round(Number(element.scrollLeft || 0))}px, ${-Math.round(Number(element.scrollTop || 0))}px, 0)`;
+  const contentWidth = isFixedTokenOverlay ? rect.width : overlayWidth;
+  const contentHeight = isFixedTokenOverlay ? rect.height : overlayHeight;
+  overlayContent.style.width = `${Math.round(contentWidth)}px`;
+  overlayContent.style.minWidth = `${Math.round(contentWidth)}px`;
+  overlayContent.style.minHeight = `${Math.round(contentHeight)}px`;
+  overlayContent.style.transform = isFixedTokenOverlay
+    ? "translate3d(0, 0, 0)"
+    : `translate3d(${-Math.round(Number(element.scrollLeft || 0))}px, ${-Math.round(Number(element.scrollTop || 0))}px, 0)`;
 }
 
 function renderEditableOverlay(state, text, spans, settings, tooltip) {
@@ -474,6 +491,12 @@ function renderEditableOverlay(state, text, spans, settings, tooltip) {
     state.overlayRoot.dataset.shieldtextGoogleEditable = "true";
   } else {
     delete state.overlayRoot.dataset.shieldtextGoogleEditable;
+  }
+  const shouldUseFixedTokenOverlay = shouldUseFixedEditableTokenOverlay(state.element, settings);
+  if (shouldUseFixedTokenOverlay) {
+    state.overlayRoot.dataset.shieldtextFixedEditable = "true";
+  } else {
+    delete state.overlayRoot.dataset.shieldtextFixedEditable;
   }
   const shouldUseFullSpanLayout =
     settings?.interventionMode === "hide" &&
@@ -493,6 +516,7 @@ function renderEditableOverlay(state, text, spans, settings, tooltip) {
     text,
     spans,
     interventionMode: settings?.interventionMode || "mask",
+    fixedToken: shouldUseFixedTokenOverlay,
     fullSpanMaskWidthPx: shouldUseFullSpanLayout
       ? getEditableFullSpanMaskWidthPx(state.element, text)
       : 0,
@@ -508,6 +532,25 @@ function renderEditableOverlay(state, text, spans, settings, tooltip) {
   }
 
   state.overlayContent.textContent = "";
+
+  if (shouldUseFixedTokenOverlay) {
+    const mask = document.createElement("span");
+    mask.className = "shieldtext-editable-mask shieldtext-editable-fixed-token";
+    mask.textContent = buildEditableFixedTokenReplacement(text, spans);
+    mask.setAttribute("aria-label", "마스킹됨");
+    const visibleColor = state.overlayTextColor || state.overlayTextFillColor || "currentColor";
+    mask.style.setProperty("color", visibleColor, "important");
+    mask.style.setProperty("-webkit-text-fill-color", visibleColor, "important");
+    mask.style.setProperty("text-shadow", "none", "important");
+    state.overlayContent.appendChild(mask);
+    state.overlayRenderKey = renderKey;
+    state.overlayRoot.removeAttribute("title");
+    state.element.removeAttribute("title");
+    MASKED_EDITABLE_STATE_IDS.add(state.nodeId);
+    scheduleEditableOverlaySync(1);
+    return;
+  }
+
   const fragment = document.createDocumentFragment();
   let cursor = 0;
 

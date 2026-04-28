@@ -153,6 +153,19 @@
   line-height: inherit;
 }
 
+.shieldtext-editable-overlay[data-shieldtext-fixed-editable="true"] .shieldtext-editable-overlay-content {
+  width: 100% !important;
+  min-width: 100% !important;
+  transform: translate3d(0, 0, 0) !important;
+  overflow: hidden !important;
+}
+
+.shieldtext-editable-fixed-token {
+  flex: 0 0 auto;
+  white-space: pre !important;
+  line-height: 1 !important;
+}
+
 .shieldtext-site-policy-overlay {
   position: fixed;
   inset: 0;
