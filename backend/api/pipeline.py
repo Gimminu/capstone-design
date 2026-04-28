@@ -24,6 +24,9 @@ from span_detector import SpanDetector
 DEFAULT_EXTENSION_SENSITIVITY = 60
 RELAXED_DICTIONARY_SAFE_SENSITIVITY = 35
 STRICT_DICTIONARY_BLOCK_SENSITIVITY = 55
+SENSITIVITY_THRESHOLD_STEP = 0.003
+MIN_SENSITIVITY_ADJUSTED_THRESHOLD = 0.58
+MAX_SENSITIVITY_ADJUSTED_THRESHOLD = 0.9
 
 SAFE_CONTEXT_EXACT = frozenset(
     {
@@ -545,16 +548,25 @@ class ProfanityPipeline:
         self.span_detector = SpanDetector(model_dir=span_model_path)
         self.threshold = threshold
 
-    def _effective_thresholds(self) -> dict[str, float]:
+    def _effective_thresholds(self, sensitivity: int | None = None) -> dict[str, float]:
         base_threshold = float(self.threshold)
+        normalized_sensitivity = _normalize_sensitivity(sensitivity)
+        sensitivity_delta = DEFAULT_EXTENSION_SENSITIVITY - normalized_sensitivity
         return {
-            category: max(base_threshold, calibrated)
+            category: min(
+                MAX_SENSITIVITY_ADJUSTED_THRESHOLD,
+                max(
+                    MIN_SENSITIVITY_ADJUSTED_THRESHOLD,
+                    max(base_threshold, calibrated)
+                    + (sensitivity_delta * SENSITIVITY_THRESHOLD_STEP),
+                ),
+            )
             for category, calibrated in CALIBRATED_SCORE_THRESHOLDS.items()
         }
 
-    def _build_classifier_flags(self, cls_result: dict) -> dict[str, bool]:
+    def _build_classifier_flags(self, cls_result: dict, sensitivity: int | None = None) -> dict[str, bool]:
         scores = cls_result.get("scores") or {}
-        thresholds = self._effective_thresholds()
+        thresholds = self._effective_thresholds(sensitivity)
         return {
             "is_profane": float(scores.get("profanity", 0.0)) >= thresholds["profanity"],
             "is_toxic": float(scores.get("toxicity", 0.0)) >= thresholds["toxicity"],
@@ -701,6 +713,7 @@ class ProfanityPipeline:
         *,
         force_safe: bool = False,
         override_flags: dict[str, bool] | None = None,
+        sensitivity: int | None = None,
     ) -> dict:
         scores = cls_result.get("scores") or _empty_scores()
         if force_safe:
@@ -714,7 +727,7 @@ class ProfanityPipeline:
                 "evidence_spans": [],
             }
 
-        effective_flags = override_flags or self._build_classifier_flags(cls_result)
+        effective_flags = override_flags or self._build_classifier_flags(cls_result, sensitivity)
         return {
             "text": original_text,
             "is_offensive": self._has_any_flag(effective_flags),
@@ -762,7 +775,7 @@ class ProfanityPipeline:
             evidence_spans = _merge_raw_spans(
                 [*mapped_dictionary_spans, *explicit_definition_spans]
             )
-            effective_flags = self._build_classifier_flags(cls_result)
+            effective_flags = self._build_classifier_flags(cls_result, sensitivity)
             if not self._has_any_flag(effective_flags):
                 effective_flags = {
                     **effective_flags,
@@ -776,7 +789,7 @@ class ProfanityPipeline:
             )
 
         if mapped_dictionary_spans:
-            effective_flags = self._build_classifier_flags(cls_result)
+            effective_flags = self._build_classifier_flags(cls_result, sensitivity)
             if not self._has_any_flag(effective_flags):
                 effective_flags = {
                     **effective_flags,
@@ -789,12 +802,17 @@ class ProfanityPipeline:
                 override_flags=effective_flags,
             )
 
-        effective_flags = self._build_classifier_flags(cls_result)
+        effective_flags = self._build_classifier_flags(cls_result, sensitivity)
         if _should_force_safe_without_evidence(original_text, sensitivity):
             return self._build_result(original_text, cls_result, force_safe=True)
 
         if not self._has_any_flag(effective_flags):
-            return self._build_result(original_text, cls_result, evidence_spans=[])
+            return self._build_result(
+                original_text,
+                cls_result,
+                evidence_spans=[],
+                sensitivity=sensitivity,
+            )
 
         if span_cache is None:
             model_spans = self.span_detector.detect(normalized_text)
@@ -815,6 +833,7 @@ class ProfanityPipeline:
             original_text,
             cls_result,
             evidence_spans=evidence_spans,
+            sensitivity=sensitivity,
         )
 
     def analyze(self, text: str, sensitivity: int | None = None) -> dict:

@@ -174,6 +174,12 @@ class FakeClassifier:
                 "is_hate": False,
                 "scores": {"profanity": 0.91, "toxicity": 0.92, "hate": 0.01},
             },
+            "너 진짜 최악이야": {
+                "is_profane": False,
+                "is_toxic": True,
+                "is_hate": False,
+                "scores": {"profanity": 0.12, "toxicity": 0.65, "hate": 0.01},
+            },
         }
 
     def predict(self, text, threshold=0.5):
@@ -208,6 +214,8 @@ class FakeSpanDetector:
                 {"text": "악마 ㄴ 누", "start": 0, "end": 6, "score": 0.89},
                 {"text": "양아치", "start": 9, "end": 12, "score": 0.95},
             ]
+        if text == "너 진짜 최악이야":
+            return [{"text": "최악", "start": 5, "end": 7, "score": 0.86}]
         return []
 
 
@@ -250,6 +258,18 @@ class PipelineContextTests(unittest.TestCase):
 
         self.assertFalse(result["is_offensive"])
         self.assertEqual(result["evidence_spans"], [])
+
+    def test_classifier_sensitivity_is_monotonic(self):
+        pipeline = self.make_pipeline()
+
+        low = pipeline.analyze("너 진짜 최악이야", sensitivity=20)
+        default = pipeline.analyze("너 진짜 최악이야", sensitivity=60)
+        high = pipeline.analyze("너 진짜 최악이야", sensitivity=100)
+
+        self.assertFalse(low["is_offensive"])
+        self.assertFalse(default["is_offensive"])
+        self.assertTrue(high["is_offensive"])
+        self.assertEqual([span["text"] for span in high["evidence_spans"]], ["최악"])
 
     def test_explicit_dictionary_definition_is_blocked_at_default_sensitivity(self):
         pipeline = self.make_pipeline()

@@ -110,7 +110,7 @@ const FOREGROUND_STANDALONE_SAFE_CACHE_TTL_MS = 7000;
 const FOREGROUND_CONTEXTUAL_SAFE_CACHE_TTL_MS = 800;
 const RECONCILE_CONTEXTUAL_SAFE_CACHE_TTL_MS = 600;
 const OFFENSIVE_CACHE_TTL_MS = 90000;
-const ANALYSIS_CACHE_SCHEMA_VERSION = "content-v8";
+const ANALYSIS_CACHE_SCHEMA_VERSION = "content-v9";
 const DECISION_STAGE_RANK = Object.freeze({
   foreground: 1,
   reconcile: 2
@@ -580,6 +580,21 @@ function invalidateAnalysisForSettingsChange() {
     reconcileFlushTimerId = null;
   }
   scheduledReconcileDelayMs = 0;
+}
+
+function includeEditableCandidatesForSettingsRefresh(candidates) {
+  const nextCandidates = Array.isArray(candidates) ? [...candidates] : [];
+  const seenNodeIds = new Set(nextCandidates.map((candidate) => candidate?.nodeId).filter(Boolean));
+
+  for (const candidate of collectEditableValueCandidates(INITIAL_EDITABLE_PASS_LIMIT)) {
+    if (!candidate?.nodeId || seenNodeIds.has(candidate.nodeId)) {
+      continue;
+    }
+    seenNodeIds.add(candidate.nodeId);
+    nextCandidates.unshift(candidate);
+  }
+
+  return nextCandidates;
 }
 
 async function loadSettings(options = {}) {
@@ -5678,7 +5693,10 @@ async function executePipeline(runReason) {
     }
 
     const immediateInputCandidates = runReason === "input" ? collectImmediateInputCandidates() : [];
-    const candidates = immediateInputCandidates.length > 0 ? immediateInputCandidates : collectCandidates();
+    let candidates = immediateInputCandidates.length > 0 ? immediateInputCandidates : collectCandidates();
+    if (runReason === "settings-updated") {
+      candidates = includeEditableCandidatesForSettingsRefresh(candidates);
+    }
     const dirtyCandidates = immediateInputCandidates.length > 0
       ? immediateInputCandidates
       : getDirtyCandidates(candidates, runReason);
@@ -6844,6 +6862,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (!changes?.settings) return;
   updateCachedSettings(changes.settings.newValue || {});
   invalidateAnalysisForSettingsChange();
+  scheduleInitialEditablePass();
   schedulePipeline("settings-updated");
 });
 
