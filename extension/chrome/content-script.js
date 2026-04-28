@@ -4685,7 +4685,14 @@ function shouldPersistEmptyPipelineRun(runReason) {
 
 function shouldPersistHotPathFailure(runReason) {
   if (
-    (runReason === "mutation" || runReason === "visibility" || runReason === "route-change") &&
+    (
+      runReason === "mutation" ||
+      runReason === "visibility" ||
+      runReason === "route-change" ||
+      runReason === "input" ||
+      runReason === "input-hot-path" ||
+      runReason === "initial-editable-pass"
+    ) &&
     isRapidlyChangingRealtimeHost()
   ) {
     return false;
