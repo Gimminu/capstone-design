@@ -7,7 +7,17 @@ import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 MODEL_PATH = "./models_v2"
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def _get_device() -> torch.device:
+    if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+        return torch.device("mps")
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    return torch.device("cpu")
+
+
+DEVICE = _get_device()
 
 
 class TextClassifier:

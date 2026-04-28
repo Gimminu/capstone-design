@@ -40,6 +40,8 @@
 | `normalizer.py` | 텍스트 정규화 (영타 변환, 특수문자, 반복 축약) |
 | `input_filter.py` | Android 입력 전처리 (UI 배지, 날짜 등 제거) |
 | `profanity_dict.py` | 욕설 사전/패턴 (보조 용도) |
+| `llm_agent.py` | LangGraph 기반 LLM Agent |
+| `agent_service.py` | 분석 파이프라인 + Agent 연결 |
 
 ## 설치 및 실행
 
@@ -104,6 +106,34 @@ uvicorn app:app --host 0.0.0.0 --port 8000
   ]
 }
 ```
+
+### `POST /agent/analyze` — LangGraph 기반 설명
+요청:
+```json
+{"text": "메갈년들 다 꺼져라"}
+```
+응답:
+```json
+{
+  "analysis": {
+    "original": "메갈년들 다 꺼져라",
+    "is_offensive": true,
+    "is_profane": true,
+    "is_toxic": true,
+    "is_hate": true,
+    "scores": {"profanity": 0.96, "toxicity": 0.99, "hate": 0.98},
+    "evidence_spans": [{"text": "메갈년", "start": 0, "end": 3, "score": 0.95}]
+  },
+  "agent": {
+    "mode": "langgraph",
+    "model": "gpt-4o-mini",
+    "reason": null,
+    "response": "1. 판단 ... 2. 근거 ... 3. 권고 ..."
+  }
+}
+```
+
+`OPENAI_API_KEY`가 없거나 LangGraph 의존성이 없으면 `fallback` 모드로 동작합니다.
 응답:
 ```json
 {
@@ -138,6 +168,8 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 | `MODEL_BASE` | `backend/` | 모델 루트 디렉토리 |
 | `MODEL_CLASSIFIER_PATH` | `{MODEL_BASE}/models/v2` | 분류 모델 경로 |
 | `MODEL_SPAN_PATH` | `{MODEL_BASE}/models/span_large_combined_crf` | Span 모델 경로 |
+| `OPENAI_API_KEY` | 없음 | LangGraph Agent 실행용 API 키 |
+| `OPENAI_MODEL` | `gpt-4o-mini` | Agent에 사용할 OpenAI 모델명 |
 
 ## 요구사항
 

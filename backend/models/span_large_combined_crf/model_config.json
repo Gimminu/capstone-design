@@ -1,0 +1,14 @@
+{
+  "use_crf": true,
+  "num_labels": 3,
+  "label2id": {
+    "O": 0,
+    "B-OFF": 1,
+    "I-OFF": 2
+  },
+  "id2label": {
+    "0": "O",
+    "1": "B-OFF",
+    "2": "I-OFF"
+  }
+}
