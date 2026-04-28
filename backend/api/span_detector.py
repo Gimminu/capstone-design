@@ -23,7 +23,16 @@ ID2LABEL   = {0: "O", 1: "B-OFF", 2: "I-OFF"}
 NUM_LABELS = 3
 MAX_LENGTH = 128
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def _get_device() -> torch.device:
+    if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+        return torch.device("mps")
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    return torch.device("cpu")
+
+
+DEVICE = _get_device()
 
 # ── 화이트리스트 (오탐 방지) ──────────────────────────────
 SPAN_WHITELIST = {

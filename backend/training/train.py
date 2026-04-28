@@ -26,7 +26,7 @@ import time
 # ── 설정 ─────────────────────────────────────────────
 BASE_MODEL = "xlm-roberta-base"  # 처음부터 재학습
 OUTPUT_DIR = "./models_v2"
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("mps" if torch.mps.is_available() else "cpu")
 LABEL_NAMES = ["profanity", "toxicity", "hate"]
 
 
