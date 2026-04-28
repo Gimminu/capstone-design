@@ -136,6 +136,15 @@
   box-shadow: 0 0 0 0.06em rgb(24, 24, 24);
 }
 
+.shieldtext-editable-overlay[data-shieldtext-google-editable="true"] .shieldtext-editable-mask,
+.shieldtext-editable-overlay[data-shieldtext-google-editable="true"] .shieldtext-editable-hide {
+  min-width: 0.55em;
+  min-height: 1em;
+  border-radius: 0.1em;
+  box-shadow: none;
+  line-height: inherit;
+}
+
 .shieldtext-site-policy-overlay {
   position: fixed;
   inset: 0;

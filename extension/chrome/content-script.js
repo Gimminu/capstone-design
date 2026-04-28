@@ -110,7 +110,7 @@ const FOREGROUND_STANDALONE_SAFE_CACHE_TTL_MS = 7000;
 const FOREGROUND_CONTEXTUAL_SAFE_CACHE_TTL_MS = 800;
 const RECONCILE_CONTEXTUAL_SAFE_CACHE_TTL_MS = 600;
 const OFFENSIVE_CACHE_TTL_MS = 90000;
-const ANALYSIS_CACHE_SCHEMA_VERSION = "content-v10";
+const ANALYSIS_CACHE_SCHEMA_VERSION = "content-v11";
 const DECISION_STAGE_RANK = Object.freeze({
   foreground: 1,
   reconcile: 2
@@ -173,6 +173,7 @@ let queuedReason = null;
 let ignoreMutationsUntil = 0;
 let latestPipelineSequence = 0;
 let latestAnalysisGeneration = 0;
+let settingsRevision = 0;
 let cachedSettings = null;
 let settingsLoadPromise = null;
 let extensionContextInvalidated = false;
@@ -231,8 +232,28 @@ function normalizeSensitivity(value) {
   return Math.max(0, Math.min(100, Math.round(numberValue)));
 }
 
+function getSensitivityMode(settings) {
+  if (settings?.enabled === false) return "off";
+  return normalizeSensitivity(settings?.sensitivity) <= 0 ? "disabled" : "normal";
+}
+
+function getSensitivityScoreThreshold(settings) {
+  const sensitivity = normalizeSensitivity(settings?.sensitivity);
+  if (sensitivity <= 0) return 1.01;
+  return Math.max(0.35, Math.min(0.9, 0.95 - sensitivity * 0.006));
+}
+
 function isFilteringSuppressedBySensitivity(settings) {
   return normalizeSensitivity(settings?.sensitivity) <= 0;
+}
+
+function bumpSettingsRevision() {
+  settingsRevision += 1;
+  return settingsRevision;
+}
+
+function isSettingsRevisionCurrent(revision) {
+  return Number(revision || 0) === Number(settingsRevision || 0);
 }
 
 function sanitizeApiBaseUrl(value) {
@@ -597,6 +618,12 @@ function restoreAllRenderedContent() {
 
   RECONCILE_QUEUE.clear();
   SKIPPED_RETRY_NODE_IDS.clear();
+  queuedReason = null;
+  if (reconcileFlushTimerId) {
+    window.clearTimeout(reconcileFlushTimerId);
+    reconcileFlushTimerId = null;
+  }
+  scheduledReconcileDelayMs = 0;
 }
 
 function includeEditableCandidatesForSettingsRefresh(candidates) {
@@ -2983,6 +3010,27 @@ function shouldCreateContainerMember(segmentElement, normalizedSegment, selected
   return isGoogleMaskTargetElement(segmentElement);
 }
 
+function buildContainerMemberCandidate(textNode, selectedCandidate, containerCandidates) {
+  if (selectedCandidate) {
+    return selectedCandidate;
+  }
+
+  const candidate = buildForcedVisibleCandidateFromTextNode(textNode);
+  if (!candidate) {
+    return null;
+  }
+
+  const inheritedGeneration = Math.max(
+    0,
+    ...containerCandidates.map((item) => Number(item?.state?.analysisGeneration || 0))
+  );
+  if (inheritedGeneration > 0 && candidate.state) {
+    candidate.state.analysisGeneration = inheritedGeneration;
+  }
+
+  return candidate;
+}
+
 function collectUnitCandidates(analysisUnits) {
   const candidatesByNodeId = new Map();
 
@@ -3224,17 +3272,22 @@ function buildContainerAnalysisUnits(candidates) {
       text += segmentText;
       offset += segmentText.length;
 
-      if (!selectedCandidate) {
+      const memberCandidate = buildContainerMemberCandidate(
+        textNode,
+        selectedCandidate,
+        containerCandidates
+      );
+      if (!memberCandidate) {
         continue;
       }
 
-      if (!memberByNodeId.has(selectedCandidate.nodeId)) {
+      if (!memberByNodeId.has(memberCandidate.nodeId)) {
         const member = {
-          candidate: selectedCandidate,
+          candidate: memberCandidate,
           start,
           end: offset
         };
-        memberByNodeId.set(selectedCandidate.nodeId, member);
+        memberByNodeId.set(memberCandidate.nodeId, member);
         members.push(member);
       }
     }
@@ -3348,17 +3401,22 @@ function buildContextualAnalysisUnits(candidates) {
       text += segmentText;
       offset += segmentText.length;
 
-      if (!selectedCandidate) {
+      const memberCandidate = buildContainerMemberCandidate(
+        textNode,
+        selectedCandidate,
+        containerCandidates
+      );
+      if (!memberCandidate) {
         continue;
       }
 
-      if (!memberByNodeId.has(selectedCandidate.nodeId)) {
+      if (!memberByNodeId.has(memberCandidate.nodeId)) {
         const member = {
-          candidate: selectedCandidate,
+          candidate: memberCandidate,
           start,
           end: offset
         };
-        memberByNodeId.set(selectedCandidate.nodeId, member);
+        memberByNodeId.set(memberCandidate.nodeId, member);
         members.push(member);
       }
     }
@@ -4251,6 +4309,36 @@ function buildLocalSpansFromAnalysis(unitText, member, analysis) {
   return localSpans;
 }
 
+function getMaxOutcomeScore(scores) {
+  return Math.max(
+    Number(scores?.profanity || 0),
+    Number(scores?.toxicity || 0),
+    Number(scores?.hate || 0)
+  );
+}
+
+function filterSpansForSensitivity(spans, scores, settings) {
+  const normalizedSpans = Array.isArray(spans) ? spans : [];
+  if (normalizedSpans.length === 0) {
+    return [];
+  }
+
+  if (isFilteringSuppressedBySensitivity(settings)) {
+    return [];
+  }
+
+  const threshold = getSensitivityScoreThreshold(settings);
+  const maxScore = getMaxOutcomeScore(scores);
+  if (maxScore >= threshold) {
+    return normalizedSpans;
+  }
+
+  return normalizedSpans.filter((span) =>
+    HIGH_SIGNAL_PROFANITY_PATTERN.test(span?.text || "") &&
+    Math.max(Number(span?.score || 0), maxScore) >= Math.max(0.55, threshold - 0.18)
+  );
+}
+
 function buildNodeOutcome(candidate, analysis, settings, evidenceSpans) {
   const scores = {
     profanity: Number(analysis?.scores?.profanity || 0),
@@ -4261,11 +4349,13 @@ function buildNodeOutcome(candidate, analysis, settings, evidenceSpans) {
     Array.isArray(evidenceSpans) ? evidenceSpans : [],
     candidate.text
   );
-  const displaySpans = normalizedLocalSpans;
+  const displaySpans = filterSpansForSensitivity(normalizedLocalSpans, scores, settings);
   const flaggedProfanity = Boolean(analysis?.is_profane);
   const flaggedToxicity = Boolean(analysis?.is_toxic);
   const flaggedHate = Boolean(analysis?.is_hate);
-  const flaggedOffensive = Boolean(analysis?.is_offensive);
+  const flaggedOffensive =
+    Boolean(analysis?.is_offensive) &&
+    (displaySpans.length > 0 || getMaxOutcomeScore(scores) >= getSensitivityScoreThreshold(settings));
   const categories = [];
   const reasons = [];
 
@@ -4572,7 +4662,16 @@ function renderOutcome(state, outcome, settings) {
 
 function applyDecision(candidates, decision, settings, options = {}) {
   const expectedGeneration = Number(options.generation || 0);
+  const expectedSettingsRevision = Number(options.settingsRevision ?? settingsRevision);
   const stage = String(options.stage || "foreground");
+  if (
+    settings?.enabled === false ||
+    (Number.isFinite(expectedSettingsRevision) && expectedSettingsRevision !== settingsRevision)
+  ) {
+    staleResponseDropCount += Array.isArray(candidates) ? candidates.length : 0;
+    return;
+  }
+
   for (const candidate of candidates) {
     const state = candidate.state;
     const hasOutcome = Object.prototype.hasOwnProperty.call(
@@ -5106,7 +5205,31 @@ async function flushReconcileQueue() {
   scheduledReconcileDelayMs = 0;
 
   try {
-    const entries = [...RECONCILE_QUEUE.values()].slice(0, RECONCILE_CHUNK_SIZE);
+    const queuedEntries = [...RECONCILE_QUEUE.values()];
+    const entries = [];
+
+    for (const entry of queuedEntries) {
+      const queuedSettingsRevision = Number(entry?.context?.settingsRevision || 0);
+      const isStaleSettings =
+        queuedSettingsRevision > 0 && !isSettingsRevisionCurrent(queuedSettingsRevision);
+
+      if (isStaleSettings || entry?.context?.enabled === false) {
+        RECONCILE_QUEUE.delete(getQueuedCandidateKey(entry.candidate));
+        clearReconcileQueued(entry.candidate);
+        staleResponseDropCount += 1;
+        continue;
+      }
+
+      entries.push(entry);
+      if (entries.length >= RECONCILE_CHUNK_SIZE) {
+        break;
+      }
+    }
+
+    if (entries.length === 0) {
+      return;
+    }
+
     for (const entry of entries) {
       RECONCILE_QUEUE.delete(getQueuedCandidateKey(entry.candidate));
       clearReconcileQueued(entry.candidate);
@@ -5142,7 +5265,8 @@ async function flushReconcileQueue() {
       latestEntry?.context?.runReason || "background-validation",
       latestEntry?.context?.hostname || location.hostname || "unknown",
       latestEntry?.context?.startedAt || performance.now(),
-      analysisGeneration
+      analysisGeneration,
+      Number(latestEntry?.context?.settingsRevision || settingsRevision)
     );
   } finally {
     isReconcileRunning = false;
@@ -5459,6 +5583,7 @@ async function executeHotPathForCandidates(candidates, runReason) {
   }
 
   const settings = await loadSettings();
+  const activeSettingsRevision = settingsRevision;
 
   if (!settings.enabled) {
     for (const candidate of nextCandidates) {
@@ -5469,6 +5594,20 @@ async function executeHotPathForCandidates(candidates, runReason) {
       }
     }
     return { ok: true, skipped: true };
+  }
+
+  if (isFilteringSuppressedBySensitivity(settings)) {
+    restoreAllRenderedContent();
+    scheduleHotPathStatsPersist({
+      enabled: true,
+      runReason,
+      backendStatus: "ready",
+      sensitivityMode: getSensitivityMode(settings),
+      maskedSpanCount: 0,
+      visibleContainerBatchSize: 0,
+      lastDecisionSource: "sensitivity-disabled"
+    });
+    return { ok: true, skipped: true, reason: "SENSITIVITY_DISABLED" };
   }
 
   const currentCandidates = nextCandidates
@@ -5490,7 +5629,10 @@ async function executeHotPathForCandidates(candidates, runReason) {
   const analysisUnits = buildHotPathAnalysisUnits(foregroundCandidates, {
       containerLimit: MAX_FOREGROUND_WAVE_CONTAINERS,
       boundContext: true,
-      preferStandaloneGoogle: true
+      preferStandaloneGoogle:
+        runReason === "input-hot-path" ||
+        runReason === "input" ||
+        runReason === "initial-editable-pass"
     });
   if (analysisUnits.length === 0) {
     return { ok: true, skipped: true };
@@ -5508,7 +5650,10 @@ async function executeHotPathForCandidates(candidates, runReason) {
     }
   );
 
-  if (analysisGeneration !== latestAnalysisGeneration) {
+  if (
+    analysisGeneration !== latestAnalysisGeneration ||
+    !isSettingsRevisionCurrent(activeSettingsRevision)
+  ) {
     staleResponseDropCount += unitCandidates.length;
     return { ok: true, stale: true };
   }
@@ -5541,7 +5686,8 @@ async function executeHotPathForCandidates(candidates, runReason) {
 
   applyDecision(unitCandidates, decision, settings, {
     generation: analysisGeneration,
-    stage: "foreground"
+    stage: "foreground",
+    settingsRevision: activeSettingsRevision
   });
   markCandidatesSettled(
     collectSettledCandidatesFromAnalysisUnits(analysisUnits, hotPathMeta.results),
@@ -5598,6 +5744,7 @@ async function executeHotPathForCandidates(candidates, runReason) {
     runReason,
     visibleContainerBatchSize: analysisUnits.length,
     foregroundCandidateCount: unitCandidates.length,
+    sensitivityMode: getSensitivityMode(settings),
     workerCacheHitCount: Number(hotPathMeta.cacheHitCount || 0),
     backendCacheHitCount: Number(hotPathMeta.backendCacheHitCount || 0),
     foregroundBackendSource: hotPathMeta.foregroundBackendSource || "",
@@ -5621,7 +5768,9 @@ async function executeHotPathForCandidates(candidates, runReason) {
       hostname,
       runReason,
       startedAt,
-      analysisGeneration
+      analysisGeneration,
+      settingsRevision: activeSettingsRevision,
+      enabled: settings.enabled !== false
     }, {
       delayMs:
         Number(decision.blockedNodeCount || 0) > 0
@@ -5686,7 +5835,8 @@ async function reconcileAnalysisUnitsWithBackend(
   runReason,
   hostname,
   startedAt,
-  analysisGeneration
+  analysisGeneration,
+  expectedSettingsRevision = settingsRevision
 ) {
   const unitCandidates = collectUnitCandidates(analysisUnits);
   try {
@@ -5715,6 +5865,11 @@ async function reconcileAnalysisUnitsWithBackend(
       return;
     }
 
+    if (!isSettingsRevisionCurrent(expectedSettingsRevision) || settings?.enabled === false) {
+      staleResponseDropCount += unitCandidates.length;
+      return;
+    }
+
     const decision = buildDecisionFromBackend(
       analysisUnits,
       fullMeta.results,
@@ -5729,7 +5884,8 @@ async function reconcileAnalysisUnitsWithBackend(
     suppressMutationFeedback(120);
     applyDecision(unitCandidates, decision, settings, {
       generation: analysisGeneration,
-      stage: "reconcile"
+      stage: "reconcile",
+      settingsRevision: expectedSettingsRevision
     });
     markCandidatesSettled(
       collectSettledCandidatesFromAnalysisUnits(analysisUnits, fullMeta.results),
@@ -5826,6 +5982,7 @@ async function executePipeline(runReason) {
 
   try {
     const settings = await loadSettings();
+    const activeSettingsRevision = settingsRevision;
     const hostname = location.hostname || "unknown";
 
     if (!settings.enabled) {
@@ -5890,7 +6047,6 @@ async function executePipeline(runReason) {
         backendStatus: "ready",
         apiMode: "sensitivity-disabled"
       };
-
       const stats = {
         hostname,
         analyzedNodeCount: 0,
@@ -5900,6 +6056,7 @@ async function executePipeline(runReason) {
         runReason,
         enabled: true,
         sensitivityDisabled: true,
+        sensitivityMode: getSensitivityMode(settings),
         sensitivity: normalizeSensitivity(settings.sensitivity),
         backendEndpoint: settings.backendApiBaseUrl,
         backendStatus: "ready",
@@ -5907,11 +6064,15 @@ async function executePipeline(runReason) {
         requestedAnalysisCount: 0,
         cacheHitCount: 0,
         lastDecisionSource: "sensitivity-disabled",
+        maskedSpanCount: 0,
+        firstMaskLatencyMs: 0,
+        reconcileQueueDepth: 0,
         lastForegroundDiagnostics: {
           decisionSource: "sensitivity-disabled",
           apiBaseUrl: settings.backendApiBaseUrl,
           backendStatus: "ready",
           foregroundBackendSource: "disabled",
+          sensitivityMode: getSensitivityMode(settings),
           batchSize: 0,
           items: []
         }
@@ -5947,7 +6108,10 @@ async function executePipeline(runReason) {
         ? MAX_HOT_PATH_CONTAINERS
         : MAX_FOREGROUND_WAVE_CONTAINERS,
       boundContext: true,
-      preferStandaloneGoogle: true
+      preferStandaloneGoogle:
+        runReason === "input" ||
+        runReason === "input-hot-path" ||
+        runReason === "initial-editable-pass"
     });
     const unitCandidates = collectUnitCandidates(analysisUnits);
     const analyzedCandidateIds = new Set(unitCandidates.map((candidate) => candidate.nodeId));
@@ -6007,11 +6171,13 @@ async function executePipeline(runReason) {
         foregroundRequestCount: 0,
         reconcileRequestCount: 0,
         lastDecisionSource: "backend-foreground",
+        sensitivityMode: getSensitivityMode(settings),
         lastForegroundDiagnostics: {
           decisionSource: "backend-foreground",
           apiBaseUrl: settings.backendApiBaseUrl,
           backendStatus: "ready",
           foregroundBackendSource: "fallback-none",
+          sensitivityMode: getSensitivityMode(settings),
           batchSize: 0,
           items: []
         }
@@ -6047,7 +6213,11 @@ async function executePipeline(runReason) {
       analysisUnits,
       settings,
       async (partialMeta) => {
-        if (pipelineSequence !== latestPipelineSequence) {
+        if (
+          pipelineSequence !== latestPipelineSequence ||
+          !isSettingsRevisionCurrent(activeSettingsRevision)
+        ) {
+          staleResponseDropCount += collectUnitCandidates(partialMeta.items).length;
           return;
         }
 
@@ -6069,7 +6239,8 @@ async function executePipeline(runReason) {
           settings,
           {
             generation: analysisGeneration,
-            stage: "foreground"
+            stage: "foreground",
+            settingsRevision: activeSettingsRevision
           }
         );
       },
@@ -6086,6 +6257,11 @@ async function executePipeline(runReason) {
       }
     );
     let stats = null;
+
+    if (!isSettingsRevisionCurrent(activeSettingsRevision)) {
+      staleResponseDropCount += unitCandidates.length;
+      return { ok: true, stale: true };
+    }
 
     if (!hotPathMeta.ok) {
       const failureStats = {
@@ -6113,6 +6289,7 @@ async function executePipeline(runReason) {
         requestedAnalysisCount: analysisUnits.length,
         cacheHitCount: 0,
         lastDecisionSource: "backend-foreground-failed",
+        sensitivityMode: getSensitivityMode(settings),
         lastForegroundDiagnostics: {
           decisionSource: "backend-foreground-failed",
           apiBaseUrl: hotPathMeta.apiBaseUrl || settings.backendApiBaseUrl,
@@ -6174,7 +6351,8 @@ async function executePipeline(runReason) {
     suppressMutationFeedback(220);
     applyDecision(unitCandidates, decision, settings, {
       generation: analysisGeneration,
-      stage: "foreground"
+      stage: "foreground",
+      settingsRevision: activeSettingsRevision
     });
     markCandidatesSettled(
       collectSettledCandidatesFromAnalysisUnits(analysisUnits, hotPathMeta.results),
@@ -6190,7 +6368,9 @@ async function executePipeline(runReason) {
           hostname,
           runReason,
           startedAt,
-          analysisGeneration
+          analysisGeneration,
+          settingsRevision: activeSettingsRevision,
+          enabled: settings.enabled !== false
         },
         {
           delayMs:
@@ -6244,6 +6424,7 @@ async function executePipeline(runReason) {
       workerCacheHitCount: Number(hotPathMeta.cacheHitCount || 0),
       returnedSpanCount: Number(decision.returnedSpanCount || 0),
       droppedSpanCount: Number(decision.droppedSpanCount || 0),
+      sensitivityMode: getSensitivityMode(settings),
       lastDecisionSource: "backend-foreground",
       lastForegroundDiagnostics: buildAnalysisDiagnostics(
         analysisUnits,
@@ -7089,11 +7270,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== "sync") return;
   if (!changes?.settings) return;
+  bumpSettingsRevision();
   const nextSettings = updateCachedSettings(changes.settings.newValue || {});
   invalidateAnalysisForSettingsChange();
-  if (isFilteringSuppressedBySensitivity(nextSettings)) {
-    restoreAllRenderedContent();
+  restoreAllRenderedContent();
+
+  if (nextSettings.enabled === false) {
+    scheduleHotPathStatsPersist({
+      enabled: false,
+      runReason: "settings-updated",
+      backendStatus: "disabled",
+      sensitivityMode: "off",
+      maskedSpanCount: 0,
+      visibleContainerBatchSize: 0
+    });
+    return;
   }
+
+  if (isFilteringSuppressedBySensitivity(nextSettings)) {
+    scheduleHotPathStatsPersist({
+      enabled: true,
+      runReason: "settings-updated",
+      backendStatus: "ready",
+      sensitivityMode: getSensitivityMode(nextSettings),
+      maskedSpanCount: 0,
+      visibleContainerBatchSize: 0,
+      lastDecisionSource: "sensitivity-disabled"
+    });
+    return;
+  }
+
   scheduleInitialEditablePass();
   schedulePipeline("settings-updated");
 });

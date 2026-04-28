@@ -252,48 +252,7 @@ function applyNativeFullEditableMask(state) {
 }
 
 function getEditableOverlayHost(element) {
-  if (!shouldUseHardEditableConcealment(element)) {
-    return document.body || document.documentElement;
-  }
-
-  if (!(element instanceof Element)) {
-    return document.body || document.documentElement;
-  }
-
-  const elementRect = element.getBoundingClientRect();
-  let current = element.parentElement;
-
-  for (let depth = 0; depth < 8 && current && current !== document.body && current !== document.documentElement; depth += 1) {
-    if (!(current instanceof HTMLElement)) {
-      current = current.parentElement;
-      continue;
-    }
-
-    const style = window.getComputedStyle(current);
-    if (style.display === "contents") {
-      current = current.parentElement;
-      continue;
-    }
-
-    const rect = current.getBoundingClientRect();
-    const containsElement =
-      rect.width >= elementRect.width * 0.9 &&
-      rect.height >= Math.min(elementRect.height, 1) &&
-      rect.left <= elementRect.left + 2 &&
-      rect.top <= elementRect.top + 2 &&
-      rect.right >= elementRect.right - 2 &&
-      rect.bottom >= elementRect.bottom - 2;
-
-    if (containsElement) {
-      return current;
-    }
-
-    current = current.parentElement;
-  }
-
-  return element.parentElement instanceof HTMLElement
-    ? element.parentElement
-    : document.body || document.documentElement;
+  return document.body || document.documentElement;
 }
 
 function ensureEditableOverlayHost(state) {
@@ -505,7 +464,13 @@ function renderEditableOverlay(state, text, spans, settings, tooltip) {
   state.maskedText = text;
   state.maskedSpans = spans;
   state.overlayTooltip = tooltip;
-  if (doSpansCoverFullText(spans, text)) {
+  const usesHardEditableConcealment = shouldUseHardEditableConcealment(state.element);
+  if (usesHardEditableConcealment) {
+    state.overlayRoot.dataset.shieldtextGoogleEditable = "true";
+  } else {
+    delete state.overlayRoot.dataset.shieldtextGoogleEditable;
+  }
+  if (doSpansCoverFullText(spans, text) && !usesHardEditableConcealment) {
     state.overlayRoot.dataset.shieldtextFullSpan = "true";
   } else {
     delete state.overlayRoot.dataset.shieldtextFullSpan;
@@ -519,10 +484,10 @@ function renderEditableOverlay(state, text, spans, settings, tooltip) {
     text,
     spans,
     interventionMode: settings?.interventionMode || "mask",
-    fullSpanMaskWidthPx: doSpansCoverFullText(spans, text) && !shouldUseHardEditableConcealment(state.element)
+    fullSpanMaskWidthPx: doSpansCoverFullText(spans, text) && !usesHardEditableConcealment
       ? getEditableFullSpanMaskWidthPx(state.element, text)
       : 0,
-    fullSpanMaskHeightPx: doSpansCoverFullText(spans, text) && !shouldUseHardEditableConcealment(state.element)
+    fullSpanMaskHeightPx: doSpansCoverFullText(spans, text) && !usesHardEditableConcealment
       ? getEditableFullSpanMaskHeightPx(state.element)
       : 0
   });
@@ -550,7 +515,7 @@ function renderEditableOverlay(state, text, spans, settings, tooltip) {
       ? "shieldtext-editable-hide"
       : "shieldtext-editable-mask";
     const shouldUseMeasuredFullSpanBox =
-      doSpansCoverFullText(spans, text) && !shouldUseHardEditableConcealment(state.element);
+      doSpansCoverFullText(spans, text) && !usesHardEditableConcealment;
     if (shouldUseMeasuredFullSpanBox) {
       const fullSpanWidthPx = getEditableFullSpanMaskWidthPx(state.element, text);
       const fullSpanHeightPx = getEditableFullSpanMaskHeightPx(state.element);
