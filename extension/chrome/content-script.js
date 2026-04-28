@@ -110,7 +110,7 @@ const FOREGROUND_STANDALONE_SAFE_CACHE_TTL_MS = 7000;
 const FOREGROUND_CONTEXTUAL_SAFE_CACHE_TTL_MS = 800;
 const RECONCILE_CONTEXTUAL_SAFE_CACHE_TTL_MS = 600;
 const OFFENSIVE_CACHE_TTL_MS = 90000;
-const ANALYSIS_CACHE_SCHEMA_VERSION = "content-v6";
+const ANALYSIS_CACHE_SCHEMA_VERSION = "content-v7";
 const DECISION_STAGE_RANK = Object.freeze({
   foreground: 1,
   reconcile: 2
@@ -5285,7 +5285,7 @@ async function executeHotPathForCandidates(candidates, runReason) {
   const analysisUnits = buildHotPathAnalysisUnits(foregroundCandidates, {
       containerLimit: MAX_FOREGROUND_WAVE_CONTAINERS,
       boundContext: true,
-      preferStandaloneGoogle: true
+      preferStandaloneGoogle: false
     });
   if (analysisUnits.length === 0) {
     return { ok: true, skipped: true };
@@ -5693,7 +5693,7 @@ async function executePipeline(runReason) {
         ? MAX_HOT_PATH_CONTAINERS
         : MAX_FOREGROUND_WAVE_CONTAINERS,
       boundContext: true,
-      preferStandaloneGoogle: true
+      preferStandaloneGoogle: false
     });
     const unitCandidates = collectUnitCandidates(analysisUnits);
     const analyzedCandidateIds = new Set(unitCandidates.map((candidate) => candidate.nodeId));
