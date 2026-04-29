@@ -725,6 +725,20 @@ function restoreAllRenderedContent() {
   scheduledReconcileDelayMs = 0;
 }
 
+function restoreCandidatesRenderedContent(candidates) {
+  suppressMutationFeedback(180);
+
+  for (const candidate of Array.isArray(candidates) ? candidates : []) {
+    if (!candidate?.state) continue;
+
+    if (candidate.candidateKind === "editable-value") {
+      restoreEditableValueState(candidate.state);
+    } else {
+      restoreNodeState(candidate.state);
+    }
+  }
+}
+
 function restoreOrphanRenderedContent() {
   suppressMutationFeedback(240);
 
@@ -5091,10 +5105,18 @@ function applyDecision(candidates, decision, settings, options = {}) {
   const expectedGeneration = Number(options.generation || 0);
   const expectedSettingsRevision = Number(options.settingsRevision ?? settingsRevision);
   const stage = String(options.stage || "foreground");
+  const currentSettings = cachedSettings || settings || {};
+  const currentFilteringDisabled =
+    currentSettings?.enabled === false ||
+    isFilteringSuppressedBySensitivity(currentSettings);
   if (
     settings?.enabled === false ||
+    currentFilteringDisabled ||
     (Number.isFinite(expectedSettingsRevision) && expectedSettingsRevision !== settingsRevision)
   ) {
+    if (currentFilteringDisabled) {
+      restoreCandidatesRenderedContent(candidates);
+    }
     staleResponseDropCount += Array.isArray(candidates) ? candidates.length : 0;
     return;
   }
