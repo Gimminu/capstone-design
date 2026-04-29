@@ -33,6 +33,12 @@ LATIN_PROFANITY_PATTERN = re.compile(
     r"f[\W_]*u[\W_]*c[\W_]*k(?:[\W_]*i[\W_]*n[\W_]*g)?|"
     r"s[\W_]*h[\W_]*i[\W_]*t|b[\W_]*i[\W_]*t[\W_]*c[\W_]*h|"
     r"asshole|bastard|cunt|dick|pussy|slut|whore|prick|twat|wanker|"
+    r"mother[\W_]*fucker|douchebag|"
+    r"puta|puto|mierda|joder|cabron|cabr[oó]n|pendejo|gilipollas|co[nñ]o|chingad[ao]|maric[oó]n|"
+    r"putain|merde|connard|salope|encul[eé]|ta[\W_]+gueule|nique[\W_]+ta[\W_]+m[eè]re|"
+    r"schei(?:ss|ß)e|arschloch|wichser|fotze|"
+    r"porra|caralho|viado|"
+    r"orospu|siktir|"
     r"nigg(?:er|a)|faggot|retard"
     r")\b",
     re.IGNORECASE,
@@ -99,11 +105,23 @@ EXTRA_SPAN_PATTERNS = [
         r"f[\W_]*u[\W_]*c[\W_]*k(?:[\W_]*i[\W_]*n[\W_]*g)?|"
         r"s[\W_]*h[\W_]*i[\W_]*t|b[\W_]*i[\W_]*t[\W_]*c[\W_]*h|"
         r"asshole|bastard|cunt|dick|pussy|slut|whore|prick|twat|wanker|"
+        r"mother[\W_]*fucker|douchebag|"
+        r"puta|puto|mierda|joder|cabron|cabr[oó]n|pendejo|gilipollas|co[nñ]o|chingad[ao]|maric[oó]n|"
+        r"putain|merde|connard|salope|encul[eé]|ta[\W_]+gueule|nique[\W_]+ta[\W_]+m[eè]re|"
+        r"schei(?:ss|ß)e|arschloch|wichser|fotze|"
+        r"porra|caralho|viado|"
+        r"orospu|siktir|"
         r"nigg(?:er|a)|faggot|retard"
         r")\b",
         re.IGNORECASE,
     ),
-    re.compile(r"くそ|クソ|馬鹿|バカ|死ね|操你妈|草你妈|傻逼|他妈的|去死", re.IGNORECASE),
+    re.compile(
+        r"くそ|クソ|馬鹿|バカ|死ね|"
+        r"操你妈|草你妈|傻逼|他妈的|去死|"
+        r"бля(?:дь|ть)?|сука|хуй|пизд[аеуы]?|еба(?:ть|н[а-я]*)|мудак|долбо[её]б|"
+        r"كسمك|كس امك|ابن الكلب",
+        re.IGNORECASE,
+    ),
 ]
 
 

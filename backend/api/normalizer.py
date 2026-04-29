@@ -14,7 +14,6 @@ try:
 except ImportError:
     _inko = None
 
-ASCII_TEXT_PATTERN = re.compile(r"^[\x00-\x7F]+$")
 ASCII_PROFANITY_MARKERS = re.compile(
     r"\b(?:"
     r"s{1,2}[\W_]*(?:h[\W_]*)?i[\W_]*b[\W_]*a[\W_]*l|tlqkf|"
@@ -23,9 +22,23 @@ ASCII_PROFANITY_MARKERS = re.compile(
     r"jiral|wlfkf|jonna|whssk|michin|alcls|k{1,2}eoj(?:ye)?o|rjwu|"
     r"f[\W_]*u[\W_]*c[\W_]*k|s[\W_]*h[\W_]*i[\W_]*t|"
     r"b[\W_]*i[\W_]*t[\W_]*c[\W_]*h|bastard|asshole|"
-    r"dick|pussy|slut|whore|cunt|prick|twat|wanker|"
+    r"dick|pussy|slut|whore|cunt|prick|twat|wanker|mother[\W_]*fucker|douchebag|"
+    r"puta|puto|mierda|joder|cabron|cabr[oó]n|pendejo|gilipollas|co[nñ]o|chingad[ao]|maric[oó]n|"
+    r"putain|merde|connard|salope|encul[eé]|ta[\W_]+gueule|nique[\W_]+ta[\W_]+m[eè]re|"
+    r"schei(?:ss|ß)e|arschloch|wichser|fotze|"
+    r"porra|caralho|viado|"
+    r"orospu|siktir|"
     r"nigg(?:er|a)|faggot|retard"
     r")\b",
+    re.IGNORECASE,
+)
+NON_ASCII_PROFANITY_MARKERS = re.compile(
+    r"(?:"
+    r"くそ|クソ|馬鹿|バカ|死ね|"
+    r"操你妈|草你妈|傻逼|他妈的|去死|"
+    r"бля(?:дь|ть)?|сука|хуй|пизд[аеуы]?|еба(?:ть|н[а-я]*)|мудак|долбо[её]б|"
+    r"كسمك|كس امك|ابن الكلب"
+    r")",
     re.IGNORECASE,
 )
 
@@ -56,7 +69,7 @@ def convert_engtypo(text: str) -> str:
     """영문 키보드로 입력된 한글을 변환"""
     if _inko is None:
         return text
-    if ASCII_TEXT_PATTERN.fullmatch(text or "") and ASCII_PROFANITY_MARKERS.search(text or ""):
+    if ASCII_PROFANITY_MARKERS.search(text or "") or NON_ASCII_PROFANITY_MARKERS.search(text or ""):
         return text
     converted = _inko.en2ko(text)
     return converted

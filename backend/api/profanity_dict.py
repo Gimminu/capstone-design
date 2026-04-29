@@ -58,8 +58,14 @@ PROFANITY_PATTERNS = [
     (r"f[\W_]*u[\W_]*c[\W_]*k(?:[\W_]*i[\W_]*n[\W_]*g)?", "fuck", "profanity"),
     (r"s[\W_]*h[\W_]*i[\W_]*t", "shit", "profanity"),
     (r"b[\W_]*i[\W_]*t[\W_]*c[\W_]*h", "bitch", "profanity"),
-    (r"a[\W_]*s[\W_]*s[\W_]*h[\W_]*o[\W_]*l[\W_]*e|bastard|dick|pussy|slut|whore|cunt|prick|twat|wanker", "english-profanity", "profanity"),
-    (r"くそ|クソ|馬鹿|バカ|死ね|操你妈|草你妈|傻逼|他妈的|去死", "multilingual-profanity", "profanity"),
+    (r"a[\W_]*s[\W_]*s[\W_]*h[\W_]*o[\W_]*l[\W_]*e|bastard|dick|pussy|slut|whore|cunt|prick|twat|wanker|mother[\W_]*fucker|douchebag", "english-profanity", "profanity"),
+    (r"(?<!\w)(?:puta|puto|mierda|joder|cabron|cabr[oó]n|pendejo|gilipollas|co[nñ]o|chingad[ao]|maric[oó]n)(?!\w)", "spanish-profanity", "profanity"),
+    (r"(?<!\w)(?:putain|merde|connard|salope|encul[eé]|ta[\W_]+gueule|nique[\W_]+ta[\W_]+m[eè]re)(?!\w)", "french-profanity", "profanity"),
+    (r"(?<!\w)(?:schei(?:ss|ß)e|arschloch|wichser|fotze)(?!\w)", "german-profanity", "profanity"),
+    (r"(?<!\w)(?:porra|caralho|viado)(?!\w)", "portuguese-profanity", "profanity"),
+    (r"(?<!\w)(?:orospu|siktir)(?!\w)", "turkish-profanity", "profanity"),
+    (r"бля(?:дь|ть)?|сука|хуй|пизд[аеуы]?|еба(?:ть|н[а-я]*)|мудак|долбо[её]б", "russian-profanity", "profanity"),
+    (r"くそ|クソ|馬鹿|バカ|死ね|操你妈|草你妈|傻逼|他妈的|去死|كسمك|كس امك|ابن الكلب", "multilingual-profanity", "profanity"),
     (r"nigg(?:er|a)|faggot|retard", "english-slur", "slur"),
 
     # ── 성희롱/성적 표현 (sexual) ──────────────────────
