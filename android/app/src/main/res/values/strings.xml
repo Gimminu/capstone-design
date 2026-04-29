@@ -1,8 +1,8 @@
 <resources>
-    <string name="app_name">ShieldText Android</string>
-    <string name="accessibility_service_label">ShieldText Comment Parser</string>
-    <string name="accessibility_service_description">Parses comment text and bounds from YouTube, Instagram, and TikTok.</string>
-    <string name="android_home_title">Android Capture Console</string>
+    <string name="app_name">청마루</string>
+    <string name="accessibility_service_label">청마루 댓글 파서</string>
+    <string name="accessibility_service_description">YouTube, Instagram, TikTok에서 댓글 텍스트와 화면 좌표를 수집합니다.</string>
+    <string name="android_home_title">청마루 안드로이드 수집 콘솔</string>
     <string name="android_home_description">YouTube, Instagram, TikTok 댓글 텍스트를 수집하고 업로드 서버 주소를 관리합니다.</string>
     <string name="server_endpoint_label">업로드 서버 주소</string>
     <string name="server_endpoint_hint">예: 100.95.209.72</string>

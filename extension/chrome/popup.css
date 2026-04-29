@@ -103,6 +103,7 @@ h2 {
   font-size: 12px;
   font-weight: 700;
   text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .grid.checks {

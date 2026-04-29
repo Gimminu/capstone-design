@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>ShieldText</title>
+    <title>청마루</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -16,7 +16,7 @@
     <main class="popup-shell">
       <header class="hero">
         <div>
-          <p class="eyebrow">SHIELDTEXT</p>
+          <p class="eyebrow">청마루</p>
           <h1>실시간 필터</h1>
         </div>
         <label class="power-switch" title="필터링 활성화">
@@ -31,7 +31,18 @@
           <li><span>마지막 분석 시각</span><strong id="runtimeLastRun">-</strong></li>
           <li><span>분석 노드 수</span><strong id="runtimeAnalyzed">0</strong></li>
           <li><span>차단 노드 수</span><strong id="runtimeBlocked">0</strong></li>
+          <li><span>첫 마스크 지연</span><strong id="runtimeFirstMask">-</strong></li>
+          <li><span>foreground 백엔드</span><strong id="runtimeHotPath">-</strong></li>
+          <li><span>foreground 상태</span><strong id="runtimeHotPathState">-</strong></li>
+          <li><span>foreground 오류</span><strong id="runtimeHotPathError">-</strong></li>
+          <li><span>foreground source</span><strong id="runtimeWorkerInit">-</strong></li>
+          <li><span>백엔드 후속 확인</span><strong id="runtimeBackendLatency">-</strong></li>
+          <li><span>마스킹 span 수</span><strong id="runtimeMaskedSpans">0</strong></li>
+          <li><span>재조정 큐 깊이</span><strong id="runtimeQueueDepth">0</strong></li>
+          <li><span>판정 출처</span><strong id="runtimeDecisionSource">-</strong></li>
           <li><span>현재 페이지 hostname</span><strong id="runtimeHostname">-</strong></li>
+          <li><span>백엔드 주소</span><strong id="runtimeBackend">-</strong></li>
+          <li><span>백엔드 상태</span><strong id="runtimeBackendState">-</strong></li>
         </ul>
       </section>
 

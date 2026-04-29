@@ -90,6 +90,17 @@ textarea {
   color: var(--ink);
 }
 
+input[type="url"],
+input[type="number"] {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  font-family: inherit;
+  background: var(--bg);
+  color: var(--ink);
+}
+
 textarea[readonly] {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     monospace;
@@ -101,6 +112,10 @@ textarea[readonly] {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
+}
+
+.diagnostic-title {
+  margin-top: 18px;
 }
 
 .stat-grid article {
@@ -164,6 +179,12 @@ textarea[readonly] {
 .status {
   margin: 0;
   min-height: 18px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.subtle-status {
+  margin: 10px 0 0;
   color: var(--muted);
   font-size: 12px;
 }

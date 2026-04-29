@@ -12,13 +12,7 @@ const DEFAULT_SETTINGS = {
   customAllowWords: "",
   blockedDomains: "",
   warnDomains: "",
-  showReason: true,
-  stats: {
-    blockedCount: 0,
-    falsePositiveCount: 0,
-    averageLatencyMs: 0,
-    totalAnalyzedCount: 0
-  }
+  showReason: true
 };
 
 const sampleTokens = [
@@ -42,7 +36,18 @@ const els = {
   runtimeLastRun: document.getElementById("runtimeLastRun"),
   runtimeAnalyzed: document.getElementById("runtimeAnalyzed"),
   runtimeBlocked: document.getElementById("runtimeBlocked"),
-  runtimeHostname: document.getElementById("runtimeHostname")
+  runtimeFirstMask: document.getElementById("runtimeFirstMask"),
+  runtimeHotPath: document.getElementById("runtimeHotPath"),
+  runtimeHotPathState: document.getElementById("runtimeHotPathState"),
+  runtimeHotPathError: document.getElementById("runtimeHotPathError"),
+  runtimeWorkerInit: document.getElementById("runtimeWorkerInit"),
+  runtimeBackendLatency: document.getElementById("runtimeBackendLatency"),
+  runtimeMaskedSpans: document.getElementById("runtimeMaskedSpans"),
+  runtimeQueueDepth: document.getElementById("runtimeQueueDepth"),
+  runtimeDecisionSource: document.getElementById("runtimeDecisionSource"),
+  runtimeHostname: document.getElementById("runtimeHostname"),
+  runtimeBackend: document.getElementById("runtimeBackend"),
+  runtimeBackendState: document.getElementById("runtimeBackendState")
 };
 
 let isRunningPipeline = false;
@@ -54,14 +59,10 @@ function getModeInputs() {
 function mergeSettings(stored) {
   return {
     ...DEFAULT_SETTINGS,
-    ...stored,
+    ...(stored || {}),
     categories: {
       ...DEFAULT_SETTINGS.categories,
       ...(stored?.categories || {})
-    },
-    stats: {
-      ...DEFAULT_SETTINGS.stats,
-      ...(stored?.stats || {})
     }
   };
 }
@@ -91,12 +92,31 @@ function setApplyButtonBusy(isBusy) {
   els.applyNowButton.textContent = isBusy ? "분석 중..." : "현재 탭 즉시 분석";
 }
 
-function mapRunFailureReason(reason) {
+function mapRunFailureReason(reason, errorCode) {
+  const code = String(errorCode || "");
   const value = String(reason || "");
-  if (value.includes("UNSUPPORTED_TAB")) return "지원되지 않는 탭입니다 (chrome://, 확장 페이지 등)";
-  if (value.includes("ACTIVE_TAB_NOT_FOUND")) return "현재 활성 탭을 찾지 못했습니다";
-  if (value.includes("Cannot access contents of url")) return "이 페이지는 크롬 정책상 접근할 수 없습니다";
-  return value || "unknown";
+  if (code === "UNSUPPORTED_TAB" || value.includes("UNSUPPORTED_TAB")) {
+    return "지원되지 않는 탭입니다 (chrome://, 확장 페이지 등)";
+  }
+  if (code === "ACTIVE_TAB_NOT_FOUND" || value.includes("ACTIVE_TAB_NOT_FOUND")) {
+    return "현재 활성 탭을 찾지 못했습니다";
+  }
+  if (value.includes("Cannot access contents of url")) {
+    return "이 페이지는 크롬 정책상 접근할 수 없습니다";
+  }
+  if (code === "HTTP_503" || value.includes("HTTP_503")) {
+    return "백엔드 모델이 아직 준비되지 않았습니다";
+  }
+  if (code === "NETWORK_UNREACHABLE") {
+    return "백엔드 서버에 연결할 수 없습니다";
+  }
+  if (code === "TIMEOUT") {
+    return "백엔드 응답 시간이 초과되었습니다";
+  }
+  if (code === "ABORTED") {
+    return "백엔드 요청이 취소되었습니다";
+  }
+  return code || value || "unknown";
 }
 
 function maskWord(word, mode) {
@@ -143,6 +163,12 @@ function safeParseHostname(url) {
   }
 }
 
+function formatLatency(value) {
+  const numeric = Number(value || 0);
+  if (!numeric) return "-";
+  return `${numeric}ms`;
+}
+
 async function getActiveTabHostname() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs?.[0];
@@ -150,29 +176,65 @@ async function getActiveTabHostname() {
   return safeParseHostname(tab.url);
 }
 
-function renderRuntimeState(state, fallbackHostname) {
-  const analyzedNodeCount = Number(state?.lastStats?.analyzedNodeCount ?? state?.lastDecision?.analyzedNodeCount ?? 0);
-  const blockedNodeCount = Number(state?.lastStats?.blockedNodeCount ?? state?.lastDecision?.blockedNodeCount ?? 0);
+function formatBackendStatus(health, state) {
+  if (health?.backendStatus === "ready" && health?.ok) return "ready";
+  if (health?.ok && health.model_ready === false) return "degraded (MODEL_NOT_READY)";
+  if (!health?.ok && (health?.errorCode || health?.reason)) {
+    return `degraded (${health?.errorCode || health?.reason})`;
+  }
+  if (state?.lastPipelineError?.errorCode || state?.lastPipelineError?.reason) {
+    return `degraded (${state?.lastPipelineError?.errorCode || state?.lastPipelineError?.reason})`;
+  }
+  return "-";
+}
+
+function renderRuntimeState(state, fallbackHostname, health) {
+  const analyzedNodeCount = Number(state?.lastStats?.analyzedNodeCount ?? 0);
+  const blockedNodeCount = Number(state?.lastStats?.blockedNodeCount ?? 0);
+  const firstMaskLatencyMs = Number(state?.lastStats?.firstMaskLatencyMs ?? 0);
+  const hotPathLatencyMs = Number(
+    state?.lastStats?.foregroundBackendLatencyMs ?? state?.lastStats?.hotPathLatencyMs ?? 0
+  );
+  const hotPathStatus = String(state?.lastStats?.hotPathStatus || "idle");
+  const hotPathErrorCode = String(state?.lastStats?.hotPathErrorCode || "");
+  const foregroundBackendSource = String(state?.lastStats?.foregroundBackendSource || "-");
+  const backendReconcileLatencyMs = Number(state?.lastStats?.backendReconcileLatencyMs ?? 0);
+  const maskedSpanCount = Number(state?.lastStats?.maskedSpanCount ?? 0);
+  const reconcileQueueDepth = Number(state?.lastStats?.reconcileQueueDepth ?? 0);
+  const decisionSource = String(state?.lastStats?.lastDecisionSource || "-");
   const hostname = state?.lastStats?.hostname || fallbackHostname || "-";
+  const backendEndpoint = health?.apiBaseUrl || state?.lastStats?.backendEndpoint || "-";
 
   els.runtimeLastRun.textContent = formatTimestamp(state?.lastRunAt);
   els.runtimeAnalyzed.textContent = String(analyzedNodeCount);
   els.runtimeBlocked.textContent = String(blockedNodeCount);
+  els.runtimeFirstMask.textContent = formatLatency(firstMaskLatencyMs);
+  els.runtimeHotPath.textContent = formatLatency(hotPathLatencyMs);
+  els.runtimeHotPathState.textContent = hotPathStatus;
+  els.runtimeHotPathError.textContent = hotPathErrorCode || "-";
+  els.runtimeWorkerInit.textContent = foregroundBackendSource;
+  els.runtimeBackendLatency.textContent = formatLatency(backendReconcileLatencyMs);
+  els.runtimeMaskedSpans.textContent = String(maskedSpanCount);
+  els.runtimeQueueDepth.textContent = String(reconcileQueueDepth);
+  els.runtimeDecisionSource.textContent = decisionSource;
   els.runtimeHostname.textContent = hostname;
+  els.runtimeBackend.textContent = backendEndpoint;
+  els.runtimeBackendState.textContent = formatBackendStatus(health, state);
 }
 
 async function refreshRuntimeState() {
-  const [state, activeHostname] = await Promise.all([
+  const [state, activeHostname, health] = await Promise.all([
     chrome.runtime.sendMessage({ type: "GET_LAST_PIPELINE_STATE" }),
-    getActiveTabHostname().catch(() => "-")
+    getActiveTabHostname().catch(() => "-"),
+    chrome.runtime.sendMessage({ type: "CHECK_API_HEALTH" }).catch(() => null)
   ]);
 
   if (!state?.ok) {
-    renderRuntimeState(null, activeHostname);
+    renderRuntimeState(null, activeHostname, health);
     return;
   }
 
-  renderRuntimeState(state, activeHostname);
+  renderRuntimeState(state, activeHostname, health);
 }
 
 function bindMode(settings) {
@@ -199,7 +261,18 @@ async function runPipelineNow() {
     });
 
     if (!response?.ok) {
-      renderStatus(`분석 실패: ${mapRunFailureReason(response?.reason)}`);
+      renderStatus(`분석 실패: ${mapRunFailureReason(response?.reason, response?.errorCode)}`);
+      return;
+    }
+
+    if (response.contentResult?.ok === false) {
+      renderStatus(
+        `분석 실패: ${mapRunFailureReason(
+          response.contentResult.reason,
+          response.contentResult.errorCode
+        )}`
+      );
+      await refreshRuntimeState();
       return;
     }
 
@@ -275,7 +348,7 @@ async function initialize() {
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== "local") return;
-    if (!changes.lastRunAt && !changes.lastStats && !changes.lastDecision) return;
+    if (!changes.lastRunAt && !changes.lastStats && !changes.lastDecision && !changes.lastPipelineError) return;
     refreshRuntimeState().catch(() => {});
   });
 }

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>ShieldText Options</title>
+    <title>청마루 설정</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -15,7 +15,7 @@
   <body>
     <main class="layout">
       <header class="title-wrap">
-        <p class="eyebrow">SHIELDTEXT</p>
+        <p class="eyebrow">청마루</p>
         <h1>상세 설정</h1>
       </header>
 
@@ -28,6 +28,26 @@
         <textarea id="allowWords" rows="3" placeholder="예: 오탐단어1, 오탐단어2"></textarea>
       </section>
 
+      <section class="card">
+        <div class="json-header-row">
+          <h2>백엔드 연결</h2>
+          <button id="checkConnectionButton" class="btn ghost" type="button">연결 확인</button>
+        </div>
+
+        <label for="backendApiBaseUrl">API 주소</label>
+        <input
+          id="backendApiBaseUrl"
+          type="url"
+          inputmode="url"
+          placeholder="예: http://127.0.0.1:8000"
+        />
+
+        <label for="requestTimeoutMs">요청 타임아웃 (ms)</label>
+        <input id="requestTimeoutMs" type="number" min="1000" max="30000" step="500" />
+
+        <p id="connectionStatusText" class="subtle-status">아직 연결 확인 전</p>
+      </section>
+
       <section class="card inline">
         <h2>표시 설정</h2>
         <label class="line">
@@ -37,7 +57,7 @@
       </section>
 
       <section class="card stats">
-        <h2>세션 통계 (Mock)</h2>
+        <h2>세션 통계</h2>
         <div class="stat-grid">
           <article>
             <p>총 차단</p>
@@ -50,6 +70,62 @@
           <article>
             <p>평균 지연</p>
             <strong id="statLatency">0ms</strong>
+          </article>
+          <article>
+            <p>총 분석</p>
+            <strong id="statAnalyzed">0</strong>
+          </article>
+        </div>
+
+        <h2 class="diagnostic-title">최근 실시간 진단</h2>
+        <div class="stat-grid">
+          <article>
+            <p>첫 마스크 지연</p>
+            <strong id="diagFirstMask">-</strong>
+          </article>
+          <article>
+            <p>foreground 백엔드</p>
+            <strong id="diagHotPath">-</strong>
+          </article>
+          <article>
+            <p>foreground 상태</p>
+            <strong id="diagHotPathState">-</strong>
+          </article>
+          <article>
+            <p>foreground 오류</p>
+            <strong id="diagHotPathError">-</strong>
+          </article>
+          <article>
+            <p>foreground source</p>
+            <strong id="diagWorkerInit">-</strong>
+          </article>
+          <article>
+            <p>백엔드 후속 확인</p>
+            <strong id="diagBackendReconcile">-</strong>
+          </article>
+          <article>
+            <p>마스킹 span 수</p>
+            <strong id="diagMaskedSpans">0</strong>
+          </article>
+          <article>
+            <p>로컬 캐시 hit</p>
+            <strong id="diagWorkerCacheHit">0</strong>
+          </article>
+          <article>
+            <p>backend cache hit</p>
+            <strong id="diagBackendCacheHit">0</strong>
+          </article>
+          <article>
+            <p>visible batch</p>
+            <strong id="diagVisibleBatch">0</strong>
+          </article>
+          <article>
+            <p>reconcile queue</p>
+            <strong id="diagReconcileQueue">0</strong>
+          </article>
+          <article>
+            <p>판정 출처</p>
+            <strong id="diagDecisionSource">-</strong>
           </article>
         </div>
       </section>
@@ -65,6 +141,19 @@
 
         <label for="decisionPreview">최근 decision 미리보기</label>
         <textarea id="decisionPreview" rows="8" readonly></textarea>
+      </section>
+
+      <section class="card json-preview">
+        <div class="json-header-row">
+          <h2>현재 탭 self-test</h2>
+          <button id="runSelfTestButton" class="btn ghost" type="button">self-test 실행</button>
+        </div>
+
+        <label for="selfTestPreview">최근 self-test 결과</label>
+        <textarea id="selfTestPreview" rows="10" readonly></textarea>
+
+        <label for="selfTestHistoryPreview">최근 self-test 이력</label>
+        <textarea id="selfTestHistoryPreview" rows="8" readonly></textarea>
       </section>
 
       <footer class="footer-actions">

@@ -27,6 +27,8 @@
 ```
 
 - **분류기가 주 판정자**, span은 근거 제공자 (판정을 뒤집지 않음)
+- `/analyze_batch`는 정규화/분류를 배치로 처리하고, 실제 유해 판정 문장에만 span 추출을 수행합니다.
+- 사전 표제어, 고유명사, 중립 설명 문맥 같은 대표 오탐 케이스는 후처리에서 안전 문맥으로 제외합니다.
 - 마스킹은 프론트(Android App / Chrome Extension)가 `evidence_spans` 기반으로 처리
 
 ## 파일 구조
@@ -53,16 +55,25 @@ pip install -r requirements.txt
 # 2. 모델 다운로드
 python scripts/download_models.py
 
-# 3. 서버 실행
+# 3. 서버 실행 (브라우저 실사용 검증)
 cd api
-uvicorn app:app --host 0.0.0.0 --port 8000
+uvicorn app:app --host 127.0.0.1 --port 8000
+
+# 개발 중 자동 재시작이 필요할 때만
+uvicorn app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 ## API 엔드포인트
 
 ### `GET /health`
 ```json
-{"status": "ok"}
+{
+  "status": "ok",
+  "model_ready": true,
+  "pipeline_loaded": true,
+  "pipeline_error": null,
+  "missing_model_files": []
+}
 ```
 
 ### `POST /analyze` — 단일 텍스트 분석
