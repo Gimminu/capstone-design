@@ -25,7 +25,16 @@ from profanity_dict import COMPILED_PATTERNS, WHITELIST
 ZERO_SCORES = {"profanity": 0.0, "toxicity": 0.0, "hate": 0.0}
 
 LATIN_PROFANITY_PATTERN = re.compile(
-    r"\b(?:fuck|fucking|shit|bitch|asshole|bastard|cunt|ssibal|sibal|tlqkf|qudtls|qudtkf)\b",
+    r"\b(?:"
+    r"s{1,2}[\W_]*(?:h[\W_]*)?i[\W_]*b[\W_]*a[\W_]*l|tlqkf|"
+    r"q[\W_]*u[\W_]*d[\W_]*t[\W_]*l[\W_]*s|qudtkf|"
+    r"by[eou]+ng[\W_]*s?in|gae[\W_]*s(?:ae|e|a)[\W_]*k{1,2}i|rotori|"
+    r"jiral|wlfkf|jonna|whssk|michin|alcls|k{1,2}eoj(?:ye)?o|rjwu|"
+    r"f[\W_]*u[\W_]*c[\W_]*k(?:[\W_]*i[\W_]*n[\W_]*g)?|"
+    r"s[\W_]*h[\W_]*i[\W_]*t|b[\W_]*i[\W_]*t[\W_]*c[\W_]*h|"
+    r"asshole|bastard|cunt|dick|pussy|slut|whore|prick|twat|wanker|"
+    r"nigg(?:er|a)|faggot|retard"
+    r")\b",
     re.IGNORECASE,
 )
 
@@ -76,8 +85,25 @@ EXPLICIT_DEFINITION_PATTERN = re.compile(
 )
 
 EXTRA_SPAN_PATTERNS = [
-    re.compile(r"\bssibal\b|\bsibal\b|\btlqkf\b|\bqudtls\b|\bqudtkf\b", re.IGNORECASE),
-    re.compile(r"\bfuck(?:ing)?\b|\bshit\b|\bbitch\b|\basshole\b|\bbastard\b|\bcunt\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:"
+        r"s{1,2}[\W_]*(?:h[\W_]*)?i[\W_]*b[\W_]*a[\W_]*l|tlqkf|"
+        r"q[\W_]*u[\W_]*d[\W_]*t[\W_]*l[\W_]*s|qudtkf|"
+        r"by[eou]+ng[\W_]*s?in|gae[\W_]*s(?:ae|e|a)[\W_]*k{1,2}i|rotori|"
+        r"jiral|wlfkf|jonna|whssk|michin|alcls|k{1,2}eoj(?:ye)?o|rjwu"
+        r")\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:"
+        r"f[\W_]*u[\W_]*c[\W_]*k(?:[\W_]*i[\W_]*n[\W_]*g)?|"
+        r"s[\W_]*h[\W_]*i[\W_]*t|b[\W_]*i[\W_]*t[\W_]*c[\W_]*h|"
+        r"asshole|bastard|cunt|dick|pussy|slut|whore|prick|twat|wanker|"
+        r"nigg(?:er|a)|faggot|retard"
+        r")\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"くそ|クソ|馬鹿|バカ|死ね|操你妈|草你妈|傻逼|他妈的|去死", re.IGNORECASE),
 ]
 
 

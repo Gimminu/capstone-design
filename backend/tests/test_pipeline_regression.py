@@ -54,7 +54,15 @@ class PipelineRegressionTest(unittest.TestCase):
             ("씨발 뭐하는 거야", "씨발"),
             ("개새끼", "개새끼"),
             ("ssibal 뜻", "ssibal"),
+            ("shi-bal 뭐야", "shi-bal"),
             ("TLQKF 티셔츠", "TLQKF"),
+            ("Qudtls 뜻", "Qudtls"),
+            ("byeongsin 뜻", "byeongsin"),
+            ("gae-saekki 뭐하냐", "gae-saekki"),
+            ("rotoRI 뜻", "rotoRI"),
+            ("whssk 짜증나", "whssk"),
+            ("michin 사람", "michin"),
+            ("kkeojo", "kkeojo"),
         ]
 
         for text, expected_span in offensive_cases:
@@ -66,11 +74,60 @@ class PipelineRegressionTest(unittest.TestCase):
                     result["evidence_spans"],
                 )
 
+    def test_english_and_multilingual_variants_return_exact_spans(self):
+        offensive_cases = [
+            ("bitch 뜻", "bitch"),
+            ("s.h.i.t happens", "s.h.i.t"),
+            ("f.u.c.k off", "f.u.c.k"),
+            ("dick move", "dick"),
+            ("whore word", "whore"),
+            ("くそ", "くそ"),
+            ("死ね", "死ね"),
+            ("操你妈", "操你妈"),
+            ("傻逼", "傻逼"),
+            ("nigga", "nigga"),
+            ("faggot", "faggot"),
+            ("retard", "retard"),
+        ]
+
+        for text, expected_span in offensive_cases:
+            with self.subTest(text=text):
+                result = self.pipeline.analyze(text, sensitivity=60)
+                self.assertTrue(result["is_offensive"])
+                self.assertTrue(
+                    any(span["text"] == expected_span for span in result["evidence_spans"]),
+                    result["evidence_spans"],
+                )
+
+    def test_ascii_safe_substrings_are_not_blocked(self):
+        safe_cases = [
+            "classic assignment",
+            "assistant script",
+            "passionate refactor",
+            "Dickens novel",
+            "pussycat dolls",
+            "Scunthorpe town",
+            "Nigeria travel",
+        ]
+
+        for text in safe_cases:
+            with self.subTest(text=text):
+                result = self.pipeline.analyze(text, sensitivity=60)
+                self.assertFalse(result["is_offensive"])
+                self.assertEqual(result["evidence_spans"], [])
+
     def test_sensitivity_zero_suppresses_direct_spans(self):
         result = self.pipeline.analyze("씨발 뭐하는 거야", sensitivity=0)
 
         self.assertFalse(result["is_offensive"])
         self.assertEqual(result["evidence_spans"], [])
+
+    def test_sensitivity_zero_suppresses_dictionary_variants(self):
+        for text in ["f.u.c.k off", "くそ", "操你妈", "nigga", "ssibal 뜻"]:
+            with self.subTest(text=text):
+                result = self.pipeline.analyze(text, sensitivity=0)
+                self.assertFalse(result["is_offensive"])
+                self.assertEqual(result["evidence_spans"], [])
 
 
 if __name__ == "__main__":
