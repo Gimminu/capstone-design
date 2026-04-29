@@ -43,6 +43,12 @@ class PipelineRegressionTest(unittest.TestCase):
                 self.assertFalse(result["is_offensive"])
                 self.assertEqual(result["evidence_spans"], [])
 
+    def test_dictionary_title_with_explicit_definition_blocks(self):
+        result = self.pipeline.analyze("시발 - 위키낱말사전\n여성의 성기를 일컫는말.", sensitivity=60)
+
+        self.assertTrue(result["is_offensive"])
+        self.assertTrue(result["evidence_spans"])
+
     def test_offensive_regression_cases_return_exact_spans(self):
         offensive_cases = [
             ("씨발 뭐하는 거야", "씨발"),

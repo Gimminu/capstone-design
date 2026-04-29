@@ -70,6 +70,11 @@ DICTIONARY_SAFE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+EXPLICIT_DEFINITION_PATTERN = re.compile(
+    r"(성기|생식기|성교|섹스|sex|sexual|욕설|비속어|비하|저속한|공격적인|모욕)",
+    re.IGNORECASE,
+)
+
 EXTRA_SPAN_PATTERNS = [
     re.compile(r"\bssibal\b|\bsibal\b|\btlqkf\b|\bqudtls\b|\bqudtkf\b", re.IGNORECASE),
     re.compile(r"\bfuck(?:ing)?\b|\bshit\b|\bbitch\b|\basshole\b|\bbastard\b|\bcunt\b", re.IGNORECASE),
@@ -125,7 +130,11 @@ def _is_safe_context(text: str, normalized: str) -> bool:
     combined = f"{text}\n{normalized}"
     if any(pattern.search(combined) for pattern in SAFE_CONTEXT_PATTERNS):
         return True
-    return bool(DICTIONARY_SAFE_PATTERN.search(combined))
+    if not DICTIONARY_SAFE_PATTERN.search(combined):
+        return False
+    # Dictionary/title-only citations are safe, but explanatory result cards
+    # that expose offensive meaning should still be filtered for the extension.
+    return not EXPLICIT_DEFINITION_PATTERN.search(combined)
 
 
 def _is_whitelisted_span_text(value: str) -> bool:
