@@ -53,4 +53,7 @@ scripts/                  보조 스크립트
 - [서비스 정의서](docs/service-definition.md)
 - [GitHub 협업 가이드](docs/github-collaboration-guide.md)
 - [팀 작업 분담표](docs/team-ownership.md)
+- [개발 이력 및 개선 근거 기록](docs/engineering-history.md)
+- [제약 사항 및 의사결정 기록](docs/constraints-and-decisions.md)
+- [보고서 작성 및 이력 관리 워크플로우](docs/reporting-workflow.md)
 - [공통 계약 문서](shared/contracts/README.md)
