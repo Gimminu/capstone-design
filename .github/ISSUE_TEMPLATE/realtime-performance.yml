@@ -1,0 +1,37 @@
+name: 실시간성/성능 문제
+description: 사용자가 먼저 읽은 뒤 마스킹되거나 스크롤/이동 시 늦게 적용되는 문제를 기록합니다.
+title: "[성능] "
+labels: ["performance", "realtime", "needs-evidence"]
+body:
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 실제 증거
+      description: URL, 캡처, 영상, popup 진단값, 콘솔 로그를 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 진단값
+      description: popup/options의 first mask latency, backend reconcile latency, cache hit, visible batch 값을 적습니다.
+      placeholder: "first mask: 4ms, backend reconcile: 30ms, source: backend-reconcile"
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 재현 순서
+      placeholder: "1. 검색어 입력\n2. 결과 진입\n3. 스크롤\n4. 마스킹 지연 확인"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 결과
+      placeholder: "예: 첫 화면 상단 후보가 사용자 인지 전 또는 즉시 반영"
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: 제약 사항
+      value: "- 전체 DOM full scan 금지\n- whole-element masking 금지\n- backend authoritative 유지"

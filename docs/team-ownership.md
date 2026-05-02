@@ -13,7 +13,7 @@
   - 주 작업 폴더: `android/` (UI 관련), `extension/chrome/`, `shared/policy/`
 
 - 이승우
-  - 책임: 문맥 기반 유해성 분류 API, API vs ML 비교 테스트
+  - 책임: 문맥 기반 유해성 분류 API, 판단 파이프라인 비교 테스트
   - 주 작업 폴더: `backend/api/`, `backend/tests/`, `evaluation/api-vs-ml/`
 
 - 정선재

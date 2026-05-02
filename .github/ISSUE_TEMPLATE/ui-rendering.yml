@@ -1,0 +1,44 @@
+name: UI/마스킹 렌더링 문제
+description: 마스킹 위치 흔들림, 입력창 표시 문제, placeholder처럼 보이는 문제를 기록합니다.
+title: "[UI] "
+labels: ["bug", "ui-rendering", "extension"]
+body:
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 실제 증거
+      description: 캡처, 영상, DOM snippet, 브라우저/확대율 정보를 적습니다.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 발생 영역
+      options:
+        - 검색창/input/textarea
+        - 일반 텍스트 노드
+        - Google 결과 카드
+        - YouTube 댓글
+        - popup/options
+        - 기타
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 결과
+      placeholder: "예: 입력창 *** fixed-token UI가 흔들리지 않음"
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 결과
+      placeholder: "예: 스크롤 후 위치 어긋남, sensitivity 변경 후 깜빡임"
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: 제약 사항
+      value: "- 입력창 fixed-token UX는 안정화 기준으로 보호\n- 일반 DOM은 exact span wrapper만 사용\n- UI 변경은 별도 PR로 검증"

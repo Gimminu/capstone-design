@@ -10,6 +10,7 @@
 3. 개선 내용은 “무엇을 바꿨는지”보다 “왜 그 방식이 적절했는지”를 함께 적습니다.
 4. 검증은 성공 여부뿐 아니라 아직 남은 제약도 같이 남깁니다.
 5. 한 번에 큰 결론을 쓰지 않고, 반복 개선의 흐름이 보이도록 작은 단위로 누적합니다.
+6. GitHub Issue와 PR을 공식 근거로 삼고, Notion은 보고서용 요약본으로만 사용합니다.
 
 ## 2. 핵심 개선 흐름
 
@@ -20,8 +21,11 @@
 | 문맥 오탐 | `카필 시발(Kapil Sibal)`, `시발 - 위키낱말사전`, `국제차량제작 시발`, `scripts`, `README`, `warp theme` 같은 정상 문맥이 가려짐 | backend regression case, 실제 Google/GitHub 화면 | 단순 금칙어 차단만으로는 프로젝트 차별성이 약해짐 | safe-context 후처리와 browser false-positive regression set 추가 | backend regression unittest, `/analyze_batch` 직접 호출 | 새로운 UI 단어가 오탐될 때 regression set에 계속 누적 |
 | 실시간성 부족 | 사용자가 먼저 텍스트를 읽은 뒤 늦게 마스킹됨 | Google/YouTube 실사용 캡처, popup의 first mask latency 및 backend reconcile latency | 모든 DOM을 즉시 전체 분석하면 느리고 flicker가 발생 | visible container 우선, dirty queue, IntersectionObserver, foreground/reconcile 분리 | popup 진단값, 실제 스크롤/페이지 진입 테스트 | CPU-only 환경에서는 sub-250ms 보장이 어려움 |
 | 입력창 마스킹 흔들림 | Google 검색창에서 마스킹 박스가 움직이거나 위치가 어긋남 | 검색창 캡처, textarea DOM 상태 확인 | native input/textarea는 내부 text range에 직접 span을 씌울 수 없음 | 검색창은 fixed-token 방식으로 분리하고, 현재 `***` UI는 고정 UX로 유지 | 검색창 입력, 이동, 포커스 변경 테스트 | 향후 입력창 UX 변경 시 별도 PR로만 수정 |
-| 민감도 반영 문제 | sensitivity 0에서도 기존 mask가 남거나 깜빡이는 것처럼 보임 | popup sensitivity 조작, backend 직접 호출 결과 | backend 판정과 frontend stale cache가 충돌하면 신뢰성이 낮아짐 | apply-time 설정 revision guard, disabled/sensitivity stale response drop, cache schema 분리 | sensitivity 0 direct backend response, extension reload 후 확인 | 사용자가 설정 변경 직후 기존 페이지를 새로고침하지 않은 경우 안내 필요 |
+| 민감도 반영 문제 | sensitivity 0에서도 기존 mask가 남거나 깜빡이는 것처럼 보임 | popup sensitivity 조작, backend 직접 호출 결과 | backend 판정과 frontend stale cache가 충돌하면 신뢰성이 낮아짐 | apply-time 설정 revision guard, disabled/sensitivity stale response drop, cache schema 분리, popup -> content script 설정 스냅샷 직접 전달 | sensitivity 0 direct backend response, extension reload 후 확인, 민감도 sweep 평가 | 설정 UI와 content script 간 중복 이벤트가 다시 생기지 않도록 회귀 확인 필요 |
 | 동적 Google 영역 누락 | AI 개요, SFC, 동적 검색 카드 일부가 후보 큐에 늦게 들어감 | 사용자가 제공한 Google AI Overview DOM, PR #17 | selector를 무작정 넓히면 성능 저하와 오탐 위험 증가 | Google high-signal rescue pass를 추가하되 fingerprint/backoff로 반복 분석 제한 | `node --check`, backend regression, 실제 Google AI 개요 테스트 | 실제 Google DOM 변경에 맞춘 selector 유지보수 필요 |
+| 서비스 차별성 약함 | 욕설 마스킹과 모델 비교만으로는 흔한 프로젝트처럼 보일 수 있음 | 교수 피드백, 현재 `service-definition.md`, `evaluation/api-vs-ml` 구조 확인 | 기능을 더 늘리기 전에 무엇이 차별점인지 먼저 고정해야 함 | 청마루를 문맥/불확실성/플랫폼 수집/근거 기반 중재 파이프라인으로 재정의 | 서비스 정의서, pipeline 평가 기준, 제약 문서 일관성 확인 | 실제 평가 표와 발표 자료에 같은 프레임을 반영해야 함 |
+| Android 분석 루프 부재 | Android 앱이 댓글 수집 JSON 업로드는 하지만 backend 모델 분석 결과가 앱에서 확인되지 않음 | Android 코드의 `ServerUploader`, backend `/analyze_android`, 빌드/테스트 결과 | 접근성 API는 DOM span을 직접 제어하지 못하므로 차단 UX 전에 수집/분석 품질을 분리 검증해야 함 | 별도 분석 API 주소 설정, `/analyze_android` 클라이언트, 분석 결과 저장, 최근 분석 진단 UI 추가 | `:app:testDebugUnitTest`, `:app:assembleDebug`, `/analyze_android` 직접 호출 | 실기기 접근성 이벤트 기반 수집 품질 검증 필요 |
+| Android no-span positive 구분 | backend가 `is_offensive=true`를 주더라도 `evidence_spans`가 비어 있는 경우가 있어 모바일 진단에서 차단 가능 항목처럼 보일 수 있음 | `/analyze_android` 직접 호출, `abstract factory pattern 설명` no-span positive 사례, Android unit test | Android 접근성 overlay는 좌표 기반이라 span이 없는 결과를 화면에 안정적으로 적용할 수 없음 | backend 원 응답은 저장하되 모바일 진단의 “마스킹 가능 댓글 수”는 `is_offensive && evidence_spans`가 있는 결과만 계산 | `AndroidAnalysisClientTest`, `:app:testDebugUnitTest`, `:app:assembleDebug` | 모델 positive와 실제 마스킹 가능 결과를 UI에서 더 세분화해 보여줄지 검토 필요 |
 
 ## 3. 최근 GitHub PR 기준 이력
 
@@ -41,20 +45,46 @@
 
 청마루는 초기에는 단순 금칙어 또는 임시 판단으로도 동작을 확인할 수 있었지만, 실제 Google 검색 결과와 YouTube 댓글 환경에서는 문맥 오탐, DOM 구조 차이, 비동기 응답 지연, 입력창 렌더링 제약이 반복적으로 발생했다.
 이에 따라 backend 모델의 `/analyze_batch` 결과를 최종 판단 기준으로 유지하고, extension은 visible container 우선 수집, dirty queue, exact span 마스킹, stale response guard를 통해 실사용 환경에서의 안정성과 반응 속도를 개선했다.
+Android 앱에서는 Chrome extension과 달리 접근성 노드 기반으로 텍스트와 좌표를 수집해야 하므로, 바로 마스킹 UX를 구현하기보다 `/analyze_android` 분석 결과를 저장하고 앱에서 최근 분석 진단을 확인하는 루프를 먼저 구축했다.
+또한 Android에서는 backend가 유해 boolean을 반환하더라도 `evidence_spans`가 없으면 실제 화면에 단어 단위로 안전하게 적용할 근거가 부족하므로, 원 응답은 보존하되 “마스킹 가능 댓글 수”는 span이 있는 결과만 집계하도록 분리했다.
+다만 교수 피드백을 반영하면 “욕설 마스킹”이나 “모델 비교”만으로는 흔한 주제처럼 보일 수 있으므로, 청마루의 차별점은 문맥 민감성, 불확실성 관리, 플랫폼별 수집 제약 대응, evidence span 기반 중재로 정리했다.
 이 과정에서 `시발 - 위키낱말사전`, `카필 시발(Kapil Sibal)`, `scripts`, `README`, `warp theme` 등 정상 문맥 오탐 사례와 `시발 뭐하는 거야`, `병신아 꺼져`, romanized 표현 등 유해 사례를 regression set으로 관리했다.
+평가는 단순 API vs ML 비교가 아니라 keyword-only, ML-only, ML+normalization, ML+safe-context, full pipeline이 각각 어떤 실패 유형에서 다른지 확인하는 방식으로 확장한다.
 
 ## 5. 매 반복마다 남길 기록 형식
 
 ```md
 ### YYYY-MM-DD / 개선 제목
 
+- GitHub Issue:
+- GitHub PR:
 - 문제:
 - 실제 증거:
 - 참고한 기준:
+- 어려움:
 - 제약:
+- 사용 기술:
 - 선택한 해결책:
 - 대안과 보류 이유:
 - 변경 파일 또는 PR:
 - 검증:
+- 결과:
 - 남은 위험:
 ```
+
+## 6. Notion 동기화 기준
+
+Notion의 `Chungmaru` 데이터베이스는 보고서 작성용 인덱스입니다.
+이 문서에 개선 흐름을 추가할 때 Notion에도 같은 단위로 항목을 남기며, 다음 필드는 반드시 채웁니다.
+
+| 필드 | 작성 기준 |
+| --- | --- |
+| 어려움 | 왜 단순 구현으로 해결되지 않았는지 기록 |
+| 제약 사항 | public API, backend contract, DOM 한계, 팀 작업 범위 등 유지해야 할 조건 기록 |
+| 사용 기술 | FastAPI, Content Script, Service Worker, Evidence Span, Cache, Regression Test처럼 실제 사용 기술 선택 |
+| 선택한 해결책 | 최종 적용한 방식과 적용 범위 기록 |
+| 대안과 보류 이유 | 검토했지만 쓰지 않은 방식을 남겨 의사결정 근거 확보 |
+| 검증 | 자동 테스트, 직접 backend 호출, 실제 브라우저 확인 중 하나 이상 기록 |
+| 결과 | 해결, 부분 해결, 보류, 재현 필요 중 하나로 상태 고정 |
+
+이 기준을 지키면 결과 보고서에서 “AI가 대신 구현했다”가 아니라 “문제를 관찰하고 제약을 분석한 뒤 기술 선택과 검증을 반복했다”는 흐름으로 설명할 수 있습니다.

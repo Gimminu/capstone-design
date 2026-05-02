@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 청마루 운영/보고 문서
+    url: https://github.com/BbangYi/ChungMaru/tree/main/docs
+    about: 코드 변경 전 제약 사항과 의사결정 기준을 먼저 확인합니다.
