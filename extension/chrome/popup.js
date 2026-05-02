@@ -176,6 +176,49 @@ async function getActiveTabHostname() {
   return safeParseHostname(tab.url);
 }
 
+async function notifyActiveTabSettingsSnapshot(settings) {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs?.[0];
+  if (!tab?.id) return { ok: false, reason: "ACTIVE_TAB_NOT_FOUND" };
+
+  try {
+    return await chrome.tabs.sendMessage(tab.id, {
+      type: "APPLY_SETTINGS_SNAPSHOT",
+      settings
+    });
+  } catch (error) {
+    const message = String(error?.message || error || "");
+    if (message.includes("Receiving end does not exist")) {
+      return { ok: false, reason: "CONTENT_SCRIPT_NOT_READY" };
+    }
+    return { ok: false, reason: message || "SETTINGS_SNAPSHOT_FAILED" };
+  }
+}
+
+async function persistAndApplySettings(settings, statusMessage) {
+  await saveSettings(settings);
+  applyPreview(settings);
+  if (statusMessage) {
+    renderStatus(statusMessage);
+  }
+
+  const snapshotResult = await notifyActiveTabSettingsSnapshot(settings);
+  if (!snapshotResult?.ok) {
+    await runPipelineNow();
+    return {
+      ok: true,
+      appliedBy: "pipeline-fallback",
+      reason: snapshotResult?.reason || "SNAPSHOT_FAILED"
+    };
+  }
+
+  await refreshRuntimeState();
+  return {
+    ok: true,
+    appliedBy: "settings-snapshot"
+  };
+}
+
 function formatBackendStatus(health, state) {
   if (health?.backendStatus === "ready" && health?.ok) return "ready";
   if (health?.ok && health.model_ready === false) return "degraded (MODEL_NOT_READY)";
@@ -242,10 +285,7 @@ function bindMode(settings) {
     input.checked = input.value === settings.interventionMode;
     input.addEventListener("change", async () => {
       settings.interventionMode = input.value;
-      await saveSettings(settings);
-      applyPreview(settings);
-      renderStatus("개입 방식 저장됨");
-      await refreshRuntimeState();
+      await persistAndApplySettings(settings, "개입 방식 저장됨");
     });
   }
 }
@@ -286,6 +326,7 @@ async function runPipelineNow() {
 
 async function initialize() {
   const settings = await loadSettings();
+  let sensitivitySaveTimerId = null;
 
   els.enabledToggle.checked = settings.enabled;
   els.sensitivityRange.value = settings.sensitivity;
@@ -301,21 +342,33 @@ async function initialize() {
 
   els.enabledToggle.addEventListener("change", async () => {
     settings.enabled = els.enabledToggle.checked;
-    await saveSettings(settings);
-    applyPreview(settings);
-    renderStatus("필터링 상태 저장됨");
-    await runPipelineNow();
+    await persistAndApplySettings(settings, "필터링 상태 저장됨");
   });
+
+  async function persistSensitivityFromControl() {
+    settings.sensitivity = Number(els.sensitivityRange.value);
+    await persistAndApplySettings(settings, "민감도 저장됨");
+  }
 
   els.sensitivityRange.addEventListener("input", () => {
     els.sensitivityLabel.textContent = String(els.sensitivityRange.value);
+    if (sensitivitySaveTimerId) {
+      clearTimeout(sensitivitySaveTimerId);
+    }
+    sensitivitySaveTimerId = setTimeout(() => {
+      sensitivitySaveTimerId = null;
+      persistSensitivityFromControl().catch((error) => {
+        renderStatus(`민감도 저장 실패: ${error?.message || error}`);
+      });
+    }, 180);
   });
 
   els.sensitivityRange.addEventListener("change", async () => {
-    settings.sensitivity = Number(els.sensitivityRange.value);
-    await saveSettings(settings);
-    renderStatus("민감도 저장됨");
-    await runPipelineNow();
+    if (sensitivitySaveTimerId) {
+      clearTimeout(sensitivitySaveTimerId);
+      sensitivitySaveTimerId = null;
+    }
+    await persistSensitivityFromControl();
   });
 
   const categoryInputs = [
@@ -328,10 +381,7 @@ async function initialize() {
   for (const [key, input] of categoryInputs) {
     input.addEventListener("change", async () => {
       settings.categories[key] = input.checked;
-      await saveSettings(settings);
-      applyPreview(settings);
-      renderStatus("카테고리 저장됨");
-      await runPipelineNow();
+      await persistAndApplySettings(settings, "카테고리 저장됨");
     });
   }
 

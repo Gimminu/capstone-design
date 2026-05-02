@@ -318,6 +318,8 @@ let overlayLayoutReuseCount = 0;
 let overlayLayoutRebuildCount = 0;
 let backendWarmupStarted = false;
 let extensionContextInvalidatedLogged = false;
+let lastAppliedSettingsSnapshotKey = "";
+let lastAppliedSettingsSnapshotAt = 0;
 
 function normalizeText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
@@ -342,6 +344,34 @@ function getSensitivityScoreThreshold(settings) {
 
 function isFilteringSuppressedBySensitivity(settings) {
   return normalizeSensitivity(settings?.sensitivity) <= 0;
+}
+
+function buildSettingsSnapshotKey(settings) {
+  const normalizedSettings = getMergedSettings(settings || {});
+  return JSON.stringify({
+    enabled: normalizedSettings.enabled !== false,
+    sensitivity: normalizeSensitivity(normalizedSettings.sensitivity),
+    interventionMode: normalizedSettings.interventionMode || DEFAULT_SETTINGS.interventionMode,
+    categories: normalizedSettings.categories || DEFAULT_SETTINGS.categories,
+    customBlockWords: String(normalizedSettings.customBlockWords || ""),
+    customAllowWords: String(normalizedSettings.customAllowWords || ""),
+    blockedDomains: String(normalizedSettings.blockedDomains || ""),
+    warnDomains: String(normalizedSettings.warnDomains || ""),
+    backendApiBaseUrl: sanitizeApiBaseUrl(normalizedSettings.backendApiBaseUrl),
+    requestTimeoutMs: normalizeRequestTimeoutMs(normalizedSettings.requestTimeoutMs)
+  });
+}
+
+function shouldSkipDuplicateSettingsSnapshot(settings) {
+  const snapshotKey = buildSettingsSnapshotKey(settings);
+  const now = Date.now();
+  const isDuplicate =
+    snapshotKey === lastAppliedSettingsSnapshotKey &&
+    now - Number(lastAppliedSettingsSnapshotAt || 0) < 750;
+
+  lastAppliedSettingsSnapshotKey = snapshotKey;
+  lastAppliedSettingsSnapshotAt = now;
+  return isDuplicate;
 }
 
 function bumpSettingsRevision() {
@@ -7756,6 +7786,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  if (message?.type === "APPLY_SETTINGS_SNAPSHOT") {
+    const result = applySettingsSnapshot(message.settings || {}, "settings-updated");
+    sendResponse(result);
+    return false;
+  }
+
   if (message?.type === "RUN_PIPELINE" || message?.type === "RUN_FILTER") {
     executePipeline(message.reason || "manual")
       .then((result) => {
@@ -7792,11 +7828,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return false;
 });
 
-chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "sync") return;
-  if (!changes?.settings) return;
+function applySettingsSnapshot(storedSettings, runReason = "settings-updated") {
+  if (shouldSkipDuplicateSettingsSnapshot(storedSettings)) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: "DUPLICATE_SETTINGS_SNAPSHOT"
+    };
+  }
+
   bumpSettingsRevision();
-  const nextSettings = updateCachedSettings(changes.settings.newValue || {});
+  const nextSettings = updateCachedSettings(storedSettings || {});
   invalidateAnalysisForSettingsChange();
   restoreAllRenderedContent();
 
@@ -7804,31 +7846,48 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     cancelScheduledPipeline();
     scheduleHotPathStatsPersist({
       enabled: false,
-      runReason: "settings-updated",
+      runReason,
       backendStatus: "disabled",
       sensitivityMode: "off",
       maskedSpanCount: 0,
       visibleContainerBatchSize: 0
     });
-    return;
+    return { ok: true, enabled: false, sensitivityMode: "off" };
   }
 
   if (isFilteringSuppressedBySensitivity(nextSettings)) {
     cancelScheduledPipeline();
     scheduleHotPathStatsPersist({
       enabled: true,
-      runReason: "settings-updated",
+      runReason,
       backendStatus: "ready",
       sensitivityMode: getSensitivityMode(nextSettings),
       maskedSpanCount: 0,
       visibleContainerBatchSize: 0,
       lastDecisionSource: "sensitivity-disabled"
     });
-    return;
+    return {
+      ok: true,
+      enabled: true,
+      sensitivityMode: getSensitivityMode(nextSettings),
+      skipped: true,
+      reason: "SENSITIVITY_DISABLED"
+    };
   }
 
   scheduleInitialEditablePass();
-  schedulePipeline("settings-updated");
+  schedulePipeline(runReason);
+  return {
+    ok: true,
+    enabled: true,
+    sensitivityMode: getSensitivityMode(nextSettings)
+  };
+}
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "sync") return;
+  if (!changes?.settings) return;
+  applySettingsSnapshot(changes.settings.newValue || {}, "settings-updated");
 });
 
 async function bootstrap() {
