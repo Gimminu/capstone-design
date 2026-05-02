@@ -12,9 +12,49 @@
 {"id":"offensive-qwerty-qudtls","group":"obfuscated","text":"Qudtls 뜻","expected_offensive":true,"expected_spans":["Qudtls"],"notes":"qwerty 우회 표현"}
 {"id":"offensive-romanized-ssibal","group":"obfuscated","text":"ssibal 뜻","expected_offensive":true,"expected_spans":["ssibal"],"notes":"romanized 우회 표현"}
 {"id":"offensive-romanized-shibal","group":"obfuscated","text":"shi-bal 뭐야","expected_offensive":true,"expected_spans":["shi-bal"],"notes":"hyphenated romanized 우회 표현"}
+{"id":"offensive-romanized-byeongsin","group":"obfuscated","text":"byeongsin 뜻","expected_offensive":true,"expected_spans":["byeongsin"],"notes":"romanized 우회 표현"}
+{"id":"offensive-romanized-gaesaekki","group":"obfuscated","text":"gae-saekki 뭐하냐","expected_offensive":true,"expected_spans":["gae-saekki"],"notes":"romanized 우회 표현"}
+{"id":"offensive-qwerty-rotori","group":"obfuscated","text":"rotoRI 뜻","expected_offensive":true,"expected_spans":["rotoRI"],"notes":"qwerty 우회 표현"}
+{"id":"offensive-qwerty-whssk","group":"obfuscated","text":"whssk 짜증나","expected_offensive":true,"expected_spans":["whssk"],"notes":"qwerty 우회 표현"}
+{"id":"offensive-romanized-michin","group":"obfuscated","text":"michin 사람","expected_offensive":true,"expected_spans":["michin"],"notes":"romanized 우회 표현"}
+{"id":"offensive-romanized-kkeojo","group":"obfuscated","text":"kkeojo","expected_offensive":true,"expected_spans":["kkeojo"],"notes":"romanized 우회 표현"}
 {"id":"offensive-english-fuck","group":"multilingual","text":"f.u.c.k off","expected_offensive":true,"expected_spans":["f.u.c.k"],"notes":"영어 변형 욕설"}
 {"id":"offensive-english-shit","group":"multilingual","text":"s.h.i.t happens","expected_offensive":true,"expected_spans":["s.h.i.t"],"notes":"영어 변형 욕설"}
+{"id":"offensive-english-bitch","group":"multilingual","text":"bitch 뜻","expected_offensive":true,"expected_spans":["bitch"],"notes":"영어 욕설"}
+{"id":"offensive-english-dick","group":"multilingual","text":"dick move","expected_offensive":true,"expected_spans":["dick"],"notes":"영어 욕설"}
+{"id":"offensive-english-whore","group":"multilingual","text":"whore word","expected_offensive":true,"expected_spans":["whore"],"notes":"영어 욕설"}
+{"id":"offensive-english-motherfucker","group":"multilingual","text":"motherfucker","expected_offensive":true,"expected_spans":["motherfucker"],"notes":"영어 욕설"}
+{"id":"offensive-spanish-puta","group":"multilingual","text":"puta","expected_offensive":true,"expected_spans":["puta"],"notes":"스페인어 욕설"}
+{"id":"offensive-spanish-mierda","group":"multilingual","text":"mierda","expected_offensive":true,"expected_spans":["mierda"],"notes":"스페인어 욕설"}
+{"id":"offensive-french-putain","group":"multilingual","text":"putain","expected_offensive":true,"expected_spans":["putain"],"notes":"프랑스어 욕설"}
+{"id":"offensive-french-ta-gueule","group":"multilingual","text":"ta gueule","expected_offensive":true,"expected_spans":["ta gueule"],"notes":"프랑스어 욕설"}
+{"id":"offensive-german-scheisse","group":"multilingual","text":"scheisse","expected_offensive":true,"expected_spans":["scheisse"],"notes":"독일어 욕설"}
+{"id":"offensive-german-scheisse-eszett","group":"multilingual","text":"scheiße","expected_offensive":true,"expected_spans":["scheiße"],"notes":"독일어 욕설"}
+{"id":"offensive-german-arschloch","group":"multilingual","text":"arschloch","expected_offensive":true,"expected_spans":["arschloch"],"notes":"독일어 욕설"}
+{"id":"offensive-portuguese-porra","group":"multilingual","text":"porra","expected_offensive":true,"expected_spans":["porra"],"notes":"포르투갈어 욕설"}
+{"id":"offensive-portuguese-caralho","group":"multilingual","text":"caralho","expected_offensive":true,"expected_spans":["caralho"],"notes":"포르투갈어 욕설"}
+{"id":"offensive-turkish-orospu","group":"multilingual","text":"orospu","expected_offensive":true,"expected_spans":["orospu"],"notes":"터키어 욕설"}
+{"id":"offensive-russian-blyad","group":"multilingual","text":"блядь","expected_offensive":true,"expected_spans":["блядь"],"notes":"러시아어 욕설"}
+{"id":"offensive-russian-suka","group":"multilingual","text":"сука","expected_offensive":true,"expected_spans":["сука"],"notes":"러시아어 욕설"}
+{"id":"offensive-japanese-kuso","group":"multilingual","text":"くそ","expected_offensive":true,"expected_spans":["くそ"],"notes":"일본어 욕설"}
+{"id":"offensive-japanese-shine","group":"multilingual","text":"死ね","expected_offensive":true,"expected_spans":["死ね"],"notes":"일본어 욕설"}
+{"id":"offensive-chinese-cnm","group":"multilingual","text":"操你妈","expected_offensive":true,"expected_spans":["操你妈"],"notes":"중국어 욕설"}
+{"id":"offensive-chinese-shabi","group":"multilingual","text":"傻逼","expected_offensive":true,"expected_spans":["傻逼"],"notes":"중국어 욕설"}
+{"id":"offensive-arabic-kusomak","group":"multilingual","text":"كسمك","expected_offensive":true,"expected_spans":["كسمك"],"notes":"아랍어 욕설"}
+{"id":"offensive-english-slur-nigga","group":"multilingual","text":"nigga","expected_offensive":true,"expected_spans":["nigga"],"notes":"영어 slur"}
+{"id":"offensive-english-slur-faggot","group":"multilingual","text":"faggot","expected_offensive":true,"expected_spans":["faggot"],"notes":"영어 slur"}
+{"id":"offensive-english-slur-retard","group":"multilingual","text":"retard","expected_offensive":true,"expected_spans":["retard"],"notes":"영어 slur"}
 {"id":"safe-ascii-assistant","group":"safe_substring","text":"assistant script","expected_offensive":false,"expected_spans":[],"notes":"부분 문자열 오탐 방지"}
+{"id":"safe-ascii-assignment","group":"safe_substring","text":"classic assignment","expected_offensive":false,"expected_spans":[],"notes":"부분 문자열 오탐 방지"}
+{"id":"safe-ascii-passionate","group":"safe_substring","text":"passionate refactor","expected_offensive":false,"expected_spans":[],"notes":"부분 문자열 오탐 방지"}
 {"id":"safe-ascii-dickens","group":"safe_substring","text":"Dickens novel","expected_offensive":false,"expected_spans":[],"notes":"영문 욕설 substring 오탐 방지"}
+{"id":"safe-ascii-pussycat","group":"safe_substring","text":"pussycat dolls","expected_offensive":false,"expected_spans":[],"notes":"영문 욕설 substring 오탐 방지"}
+{"id":"safe-ascii-scunthorpe","group":"safe_substring","text":"Scunthorpe town","expected_offensive":false,"expected_spans":[],"notes":"영문 욕설 substring 오탐 방지"}
+{"id":"safe-ascii-nigeria","group":"safe_substring","text":"Nigeria travel","expected_offensive":false,"expected_spans":[],"notes":"영문 slur substring 오탐 방지"}
 {"id":"safe-ascii-putamen","group":"safe_substring","text":"Putamen anatomy","expected_offensive":false,"expected_spans":[],"notes":"다국어/영문 substring 오탐 방지"}
+{"id":"safe-ascii-computational","group":"safe_substring","text":"computational geometry","expected_offensive":false,"expected_spans":[],"notes":"일반 기술어 오탐 방지"}
+{"id":"safe-ascii-constitutional","group":"safe_substring","text":"constitutional law","expected_offensive":false,"expected_spans":[],"notes":"일반 영어 문구 오탐 방지"}
+{"id":"safe-ascii-meredith","group":"safe_substring","text":"Meredith project","expected_offensive":false,"expected_spans":[],"notes":"고유명사 오탐 방지"}
+{"id":"safe-ascii-arsenal","group":"safe_substring","text":"Arsenal match","expected_offensive":false,"expected_spans":[],"notes":"일반 영어 문구 오탐 방지"}
+{"id":"safe-ascii-canal","group":"safe_substring","text":"Canal route","expected_offensive":false,"expected_spans":[],"notes":"일반 영어 문구 오탐 방지"}
 {"id":"context-definition-exposure","group":"definition_exposure","text":"시발 - 위키낱말사전\n여성의 성기를 일컫는말.","expected_offensive":true,"expected_spans":["시발"],"notes":"청소년 보호 관점에서 설명 본문 노출 중재"}
