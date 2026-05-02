@@ -154,7 +154,22 @@ class YoutubeAccessibilityService : AccessibilityService() {
         lastUploadAt = now
 
         Thread {
-            ServerUploader.uploadJsonFile(applicationContext, savedFile)
+            val analysis = AndroidAnalysisClient.analyzeSnapshot(applicationContext, snapshot)
+            AnalysisDiagnosticsStore.saveAttempt(applicationContext, analysis)
+
+            analysis.response?.let { response ->
+                JsonFileStore.saveAnalysisResponse(applicationContext, response, currentPackage)
+            }
+
+            val uploadOk = ServerUploader.uploadJsonFile(applicationContext, savedFile)
+
+            Log.d(
+                TAG,
+                "snapshot processed package=$currentPackage uploadOk=$uploadOk " +
+                    "analysisOk=${analysis.ok} comments=${analysis.commentCount} " +
+                    "offensive=${analysis.offensiveCount} filtered=${analysis.filteredCount} " +
+                    "analysisLatencyMs=${analysis.latencyMs} analysisError=${analysis.error.orEmpty()}"
+            )
         }.start()
     }
 

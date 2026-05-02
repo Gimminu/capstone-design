@@ -37,7 +37,7 @@ object JsonFileStore {
             dir.mkdirs()
         }
 
-        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+        val stamp = formatStamp(snapshot.timestamp)
         val prefix = when (sourcePackage) {
             YOUTUBE_PACKAGE -> "youtube_comments"
             INSTAGRAM_PACKAGE -> "instagram_comments"
@@ -50,6 +50,37 @@ object JsonFileStore {
         Log.d(TAG, "saved file = ${file.absolutePath}")
 
         return file
+    }
+
+    fun saveAnalysisResponse(
+        context: Context,
+        response: AndroidAnalysisResponse,
+        sourcePackage: String
+    ): File {
+        val baseDir = context.getExternalFilesDir(null) ?: context.filesDir
+        val dir = File(baseDir, "analysis_results")
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+
+        val stamp = formatStamp(response.timestamp)
+        val prefix = when (sourcePackage) {
+            YOUTUBE_PACKAGE -> "youtube_analysis"
+            INSTAGRAM_PACKAGE -> "instagram_analysis"
+            TIKTOK_PACKAGE, TIKTOK_ALT_PACKAGE -> "tiktok_analysis"
+            else -> "analysis"
+        }
+        val file = File(dir, "${prefix}_$stamp.json")
+
+        file.writeText(gson.toJson(response), Charsets.UTF_8)
+        Log.d(TAG, "saved analysis file = ${file.absolutePath}")
+
+        return file
+    }
+
+    private fun formatStamp(timestampMillis: Long): String {
+        val safeTimestamp = timestampMillis.takeIf { it > 0L } ?: System.currentTimeMillis()
+        return SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date(safeTimestamp))
     }
 
     private fun normalizeCommentForSave(comment: ParsedComment): ParsedComment {

@@ -1,0 +1,56 @@
+name: 문서/보고서 근거 정리
+description: 교수님 보고서에 반영할 개발 이력, 제약, 검증 내용을 정리합니다.
+title: "[문서] "
+labels: ["documentation", "reporting"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 문제
+      placeholder: "어떤 문제를 관찰했는지 적습니다."
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 참고 근거
+      placeholder: "PR, 이슈, 캡처, 테스트 결과, 로그"
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: 제약 사항
+      placeholder: "유지해야 했던 API, UX, 팀 작업 범위"
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: 선택한 해결책
+      placeholder: "왜 이 방식이 적절했는지 함께 적습니다."
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: 검증
+      placeholder: "자동 테스트, 직접 호출, 실제 브라우저 확인"
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: 결과
+      options:
+        - 해결
+        - 부분 해결
+        - 보류
+        - 재현 필요
+    validations:
+      required: true
+  - type: textarea
+    id: remaining-risk
+    attributes:
+      label: 남은 과제
+      placeholder: "아직 검증하지 못한 환경, 남은 오탐/미탐, 후속 PR 범위"

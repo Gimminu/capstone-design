@@ -1,4 +1,4 @@
-# capstone-design
+# Chungmaru / 청마루
 
 모바일 앱 + 브라우저 익스텐션 기반 실시간 텍스트 유해성 필터링 에이전트 프로젝트입니다.
 
@@ -13,7 +13,7 @@ shared/contracts/         앱-익스텐션-백엔드 공통 JSON 계약
 shared/normalization/     텍스트 정규화
 shared/policy/            민감도/카테고리 정책
 shared/rules/             룰 기반 필터
-evaluation/api-vs-ml/     API vs ML 비교 실험
+evaluation/api-vs-ml/     판단 파이프라인 비교 실험
 docs/                     협업 및 작업 가이드
 scripts/                  보조 스크립트
 ```
@@ -50,10 +50,15 @@ scripts/                  보조 스크립트
 
 ## 관련 문서
 
-- [서비스 정의서](docs/service-definition.md)
-- [GitHub 협업 가이드](docs/github-collaboration-guide.md)
-- [팀 작업 분담표](docs/team-ownership.md)
-- [개발 이력 및 개선 근거 기록](docs/engineering-history.md)
+처음 볼 문서는 아래 세 개만 보면 됩니다.
+
+- [서비스 정의서](docs/service-definition.md): 프로젝트 범위와 구조
+- [GitHub 협업 가이드](docs/github-collaboration-guide.md): 이슈/PR/머지 기준
+- [개발 이력 및 개선 근거 기록](docs/engineering-history.md): 보고서에 쓸 개선 흐름
+
+상세 기준은 필요할 때만 확인합니다.
+
 - [제약 사항 및 의사결정 기록](docs/constraints-and-decisions.md)
 - [보고서 작성 및 이력 관리 워크플로우](docs/reporting-workflow.md)
+- [팀 작업 분담표](docs/team-ownership.md)
 - [공통 계약 문서](shared/contracts/README.md)

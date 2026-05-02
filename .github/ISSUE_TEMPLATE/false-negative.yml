@@ -1,0 +1,50 @@
+name: 미탐 신고
+description: 유해 문맥인데 마스킹되지 않거나 너무 늦게 반영된 사례를 기록합니다.
+title: "[미탐] "
+labels: ["bug", "false-negative", "needs-regression"]
+body:
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 실제 증거
+      description: URL, 캡처, 콘솔 로그, backend 응답 등 재현 근거를 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: 입력 문장 또는 화면 텍스트
+      description: 문장 전체와 문제가 된 단어를 함께 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 결과
+      placeholder: "예: 유해 span만 즉시 마스킹"
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 결과
+      placeholder: "예: 마스킹 없음, 새로고침 후에만 적용, 1초 이상 지연"
+    validations:
+      required: true
+  - type: dropdown
+    id: source-area
+    attributes:
+      label: 발생 영역
+      options:
+        - Google 검색창
+        - Google 검색 결과
+        - Google AI 개요
+        - YouTube 댓글
+        - 일반 웹 페이지
+        - Backend 직접 호출
+        - 기타
+  - type: textarea
+    id: validation
+    attributes:
+      label: 검증 계획
+      placeholder: "예: regression case 추가, popup latency 확인, backend 직접 비교"

@@ -1,0 +1,20 @@
+{"id":"safe-ui-scripts","group":"safe_ui","text":"scripts","expected_offensive":false,"expected_spans":[],"notes":"GitHub/웹 UI 일반 문자열 오탐 방지"}
+{"id":"safe-ui-readme","group":"safe_ui","text":"README","expected_offensive":false,"expected_spans":[],"notes":"저장소 파일명 오탐 방지"}
+{"id":"safe-ui-warp-theme","group":"safe_ui","text":"warp theme","expected_offensive":false,"expected_spans":[],"notes":"기술/제품 검색어 오탐 방지"}
+{"id":"safe-ui-abstract-factory","group":"safe_ui","text":"abstract factory","expected_offensive":false,"expected_spans":[],"notes":"정보처리기사/디자인 패턴 용어 오탐 방지"}
+{"id":"safe-proper-kapil-sibal","group":"safe_context","text":"카필 시발(Kapil Sibal)은 인도의 변호사이자, 정치인이다.","expected_offensive":false,"expected_spans":[],"notes":"고유명사 transliteration 문맥"}
+{"id":"safe-vehicle-sibal","group":"safe_context","text":"국제차량제작 시발","expected_offensive":false,"expected_spans":[],"notes":"역사/차량명 문맥"}
+{"id":"safe-title-wiktionary","group":"safe_context","text":"시발 - 위키낱말사전","expected_offensive":false,"expected_spans":[],"notes":"사전 제목 단독 문맥"}
+{"id":"offensive-direct-sibal","group":"direct_attack","text":"씨발 뭐하는 거야","expected_offensive":true,"expected_spans":["씨발"],"notes":"직접 욕설"}
+{"id":"offensive-direct-byeongsin","group":"direct_attack","text":"병신아 꺼져","expected_offensive":true,"expected_spans":["병신","꺼져"],"notes":"직접 공격 표현"}
+{"id":"offensive-direct-gaesaekki","group":"direct_attack","text":"개새끼 꺼져","expected_offensive":true,"expected_spans":["개새끼","꺼져"],"notes":"직접 공격 표현"}
+{"id":"offensive-qwerty-tlqkf","group":"obfuscated","text":"TLQKF 티셔츠","expected_offensive":true,"expected_spans":["TLQKF"],"notes":"qwerty 우회 표현"}
+{"id":"offensive-qwerty-qudtls","group":"obfuscated","text":"Qudtls 뜻","expected_offensive":true,"expected_spans":["Qudtls"],"notes":"qwerty 우회 표현"}
+{"id":"offensive-romanized-ssibal","group":"obfuscated","text":"ssibal 뜻","expected_offensive":true,"expected_spans":["ssibal"],"notes":"romanized 우회 표현"}
+{"id":"offensive-romanized-shibal","group":"obfuscated","text":"shi-bal 뭐야","expected_offensive":true,"expected_spans":["shi-bal"],"notes":"hyphenated romanized 우회 표현"}
+{"id":"offensive-english-fuck","group":"multilingual","text":"f.u.c.k off","expected_offensive":true,"expected_spans":["f.u.c.k"],"notes":"영어 변형 욕설"}
+{"id":"offensive-english-shit","group":"multilingual","text":"s.h.i.t happens","expected_offensive":true,"expected_spans":["s.h.i.t"],"notes":"영어 변형 욕설"}
+{"id":"safe-ascii-assistant","group":"safe_substring","text":"assistant script","expected_offensive":false,"expected_spans":[],"notes":"부분 문자열 오탐 방지"}
+{"id":"safe-ascii-dickens","group":"safe_substring","text":"Dickens novel","expected_offensive":false,"expected_spans":[],"notes":"영문 욕설 substring 오탐 방지"}
+{"id":"safe-ascii-putamen","group":"safe_substring","text":"Putamen anatomy","expected_offensive":false,"expected_spans":[],"notes":"다국어/영문 substring 오탐 방지"}
+{"id":"context-definition-exposure","group":"definition_exposure","text":"시발 - 위키낱말사전\n여성의 성기를 일컫는말.","expected_offensive":true,"expected_spans":["시발"],"notes":"청소년 보호 관점에서 설명 본문 노출 중재"}

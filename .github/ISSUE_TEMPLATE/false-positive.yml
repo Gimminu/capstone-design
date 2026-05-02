@@ -1,0 +1,44 @@
+name: 오탐 신고
+description: 정상 문맥인데 마스킹되거나 유해로 판정된 사례를 기록합니다.
+title: "[오탐] "
+labels: ["bug", "false-positive", "needs-regression"]
+body:
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 실제 증거
+      description: URL, 캡처, 콘솔 로그, backend 응답 등 재현 근거를 적습니다.
+      placeholder: "예: Google 검색 URL, 캡처 파일, /analyze_batch 응답"
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: 입력 문장 또는 화면 텍스트
+      description: 가능하면 문장 전체를 그대로 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 결과
+      placeholder: "예: safe 유지, 마스킹 없음"
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 결과
+      placeholder: "예: 특정 span이 마스킹됨, 카드 일부가 늦게 가려짐"
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: 제약 사항
+      value: "- `/analyze_batch` 계약 유지\n- exact span만 마스킹\n- frontend 단독 금칙어 차단 금지"
+  - type: textarea
+    id: validation
+    attributes:
+      label: 검증 계획
+      placeholder: "예: backend regression 추가, 실제 Google 화면 재확인"
