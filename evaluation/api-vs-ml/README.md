@@ -64,6 +64,8 @@ python3 evaluation/api-vs-ml/run_pipeline_eval.py --json
 | 플랫폼 수집 실패 | Google AI Overview, YouTube 댓글, Android 접근성 트리 | 누락/지연/오탐 원인 기록 |
 
 현재 기본 케이스는 `cases.jsonl`에 기록합니다.
+이 파일은 public `/analyze_batch` 평가뿐 아니라 `backend.tests.test_pipeline_regression`에서도 그대로 사용합니다.
+따라서 새 회귀 사례를 추가할 때는 테스트 코드에 별도 하드코딩하지 말고 `cases.jsonl`만 확장하는 것을 기본 원칙으로 합니다.
 새 케이스는 아래 원칙으로 추가합니다.
 
 - `expected_offensive=false`: 정상 문맥이므로 가리면 오탐입니다.
