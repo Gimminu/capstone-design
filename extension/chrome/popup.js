@@ -67,6 +67,16 @@ function mergeSettings(stored) {
   };
 }
 
+function normalizeSensitivity(value) {
+  const numberValue = Number(value);
+  if (Number.isNaN(numberValue)) return DEFAULT_SETTINGS.sensitivity;
+  return Math.max(0, Math.min(100, Math.round(numberValue)));
+}
+
+function getSensitivityMode(value) {
+  return normalizeSensitivity(value) <= 0 ? "disabled" : "normal";
+}
+
 async function loadSettings() {
   const { settings } = await chrome.storage.sync.get("settings");
   return mergeSettings(settings || {});
@@ -346,15 +356,30 @@ async function initialize() {
   });
 
   async function persistSensitivityFromControl() {
-    settings.sensitivity = Number(els.sensitivityRange.value);
+    settings.sensitivity = normalizeSensitivity(els.sensitivityRange.value);
     await persistAndApplySettings(settings, "민감도 저장됨");
   }
 
   els.sensitivityRange.addEventListener("input", () => {
-    els.sensitivityLabel.textContent = String(els.sensitivityRange.value);
+    const previousMode = getSensitivityMode(settings.sensitivity);
+    settings.sensitivity = normalizeSensitivity(els.sensitivityRange.value);
+    const nextMode = getSensitivityMode(settings.sensitivity);
+
+    els.sensitivityLabel.textContent = String(settings.sensitivity);
+    applyPreview(settings);
+
     if (sensitivitySaveTimerId) {
       clearTimeout(sensitivitySaveTimerId);
+      sensitivitySaveTimerId = null;
     }
+
+    if (previousMode !== nextMode || nextMode === "disabled") {
+      persistSensitivityFromControl().catch((error) => {
+        renderStatus(`민감도 저장 실패: ${error?.message || error}`);
+      });
+      return;
+    }
+
     sensitivitySaveTimerId = setTimeout(() => {
       sensitivitySaveTimerId = null;
       persistSensitivityFromControl().catch((error) => {
