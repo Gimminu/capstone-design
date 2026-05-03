@@ -20,10 +20,10 @@ class YoutubeAccessibilityService : AccessibilityService() {
         private const val TIKTOK_PACKAGE = "com.zhiliaoapp.musically"
         private const val TIKTOK_ALT_PACKAGE = "com.ss.android.ugc.trill"
         private const val MIN_UPLOAD_INTERVAL_MS = 1500L
-        private const val PARSE_DELAY_SCROLL_MS = 120L
-        private const val PARSE_DELAY_CONTENT_MS = 160L
-        private const val PARSE_DELAY_WINDOW_MS = 240L
-        private const val RETRY_AFTER_IN_FLIGHT_MS = 90L
+        private const val PARSE_DELAY_SCROLL_MS = 32L
+        private const val PARSE_DELAY_CONTENT_MS = 80L
+        private const val PARSE_DELAY_WINDOW_MS = 120L
+        private const val RETRY_AFTER_IN_FLIGHT_MS = 16L
     }
 
     private val handler = Handler(Looper.getMainLooper())
