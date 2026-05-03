@@ -20,8 +20,8 @@ private data class PendingComment(
 object AndroidAnalysisClient {
 
     private const val TAG = "AndroidAnalysisClient"
-    private const val CONNECT_TIMEOUT_MS = 1500
-    private const val READ_TIMEOUT_MS = 4500
+    private const val CONNECT_TIMEOUT_MS = 900
+    private const val READ_TIMEOUT_MS = 2200
     private const val RESPONSE_CACHE_LIMIT = 256
     private const val RESPONSE_CACHE_TTL_MS = 30_000L
 
