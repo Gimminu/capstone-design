@@ -83,6 +83,8 @@ data class AndroidAnalysisAttempt(
     val overlayCandidateCount: Int = 0,
     val overlayRenderedCount: Int = 0,
     val overlaySkippedUnstableCount: Int = 0,
+    val visualCaptureSupported: Boolean = false,
+    val visualCaptureReason: String = VisualTextCaptureSupport.REASON_SERVICE_NOT_CONNECTED,
     val response: AndroidAnalysisResponse? = null,
     val actionableSamples: List<String> = emptyList(),
     val error: String? = null
@@ -100,6 +102,8 @@ data class AndroidAnalysisDiagnostics(
     val overlayCandidateCount: Int,
     val overlayRenderedCount: Int,
     val overlaySkippedUnstableCount: Int,
+    val visualCaptureSupported: Boolean,
+    val visualCaptureReason: String,
     val actionableSamples: List<String>,
     val error: String?
 )

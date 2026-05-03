@@ -38,6 +38,8 @@ class YoutubeAccessibilityService : AccessibilityService() {
     private var parseScheduled = false
     private var scheduledParseAtMs = 0L
     private var lastAppliedSensitivity: Int? = null
+    private var visualCaptureState: VisualTextCaptureState =
+        VisualTextCaptureSupport.inspect(serviceInfo = null)
 
     private val parseRunnable = Runnable {
         parseScheduled = false
@@ -51,7 +53,13 @@ class YoutubeAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        visualCaptureState = VisualTextCaptureSupport.inspect(serviceInfo)
         Log.d(TAG, "service connected")
+        Log.d(
+            TAG,
+            "visual text capture supported=${visualCaptureState.supported} " +
+                "sdk=${visualCaptureState.sdkInt} reason=${visualCaptureState.reason}"
+        )
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -366,8 +374,8 @@ class YoutubeAccessibilityService : AccessibilityService() {
     }
 
     private fun AndroidAnalysisAttempt.withOverlayDiagnostics(packageName: String): AndroidAnalysisAttempt {
-        if (!supportsMaskOverlay(packageName)) return this
-        val response = response ?: return this
+        if (!supportsMaskOverlay(packageName)) return withVisualCaptureDiagnostics()
+        val response = response ?: return withVisualCaptureDiagnostics()
         val metrics = resources.displayMetrics
         val plan = AndroidMaskOverlayPlanner.buildPlan(
             response = response,
@@ -378,7 +386,16 @@ class YoutubeAccessibilityService : AccessibilityService() {
         return copy(
             overlayCandidateCount = plan.candidateCount,
             overlayRenderedCount = plan.specs.size,
-            overlaySkippedUnstableCount = plan.skippedUnstableCount
+            overlaySkippedUnstableCount = plan.skippedUnstableCount,
+            visualCaptureSupported = visualCaptureState.supported,
+            visualCaptureReason = visualCaptureState.reason
+        )
+    }
+
+    private fun AndroidAnalysisAttempt.withVisualCaptureDiagnostics(): AndroidAnalysisAttempt {
+        return copy(
+            visualCaptureSupported = visualCaptureState.supported,
+            visualCaptureReason = visualCaptureState.reason
         )
     }
 

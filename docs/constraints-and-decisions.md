@@ -137,6 +137,15 @@
 - 대안 보류 이유: backend가 실제 이미지 글자를 본 것이 아니거나 OCR box가 없는 상태에서 전체를 덮으면 근거 기반 차단이 아니라 blanket masking이 된다.
 - 다음 단계: `AccessibilityService.takeScreenshot` 기반 캡처, ML Kit/서버 OCR 중 하나를 선택해 2~4개 viewport 썸네일만 분석하는 성능 spike를 진행한다.
 
+### Decision 13. Android visual text OCR은 capability gate 뒤에서만 시작
+
+- 선택: OCR 엔진을 붙이기 전에 `VisualTextCaptureSupport`로 Android SDK와 accessibility screenshot capability를 판별하고, 최근 분석 진단에 지원 여부를 표시한다.
+- 이유: 기기나 서비스 설정이 스크린샷 캡처를 지원하지 않으면 OCR 후보 자체가 생기지 않는다. 이 상태를 backend 미탐이나 overlay 버그로 오해하면 원인 추적이 불가능해진다.
+- 적용: `android:canTakeScreenshot="true"` 선언을 유지하고, 서비스 연결 시 capability를 읽어 `이미지 텍스트 캡처: 가능/불가(reason)` 형식으로 저장한다.
+- 대안: OCR 라이브러리를 먼저 붙이고 실패 로그로 판단한다.
+- 대안 보류 이유: OCR 의존성을 먼저 추가하면 빌드/성능/개인정보 제약이 한꺼번에 섞이고, 실제 실패가 권한 문제인지 OCR 품질 문제인지 분리하기 어렵다.
+- 다음 단계: 지원 가능 상태가 확인된 환경에서 viewport 상단 썸네일 2~4개만 캡처하고, OCR 결과를 backend `/analyze_android`로 보내는 제한 실험을 진행한다.
+
 ## 3. 보고서에 넣기 좋은 제약 요약
 
 청마루의 핵심 제약은 “정확한 문맥 판단”과 “사용자가 읽기 전 빠른 반영”이 서로 충돌한다는 점이다.
