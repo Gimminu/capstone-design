@@ -10,7 +10,6 @@ import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
-import android.widget.FrameLayout
 import android.widget.TextView
 import kotlin.math.max
 import kotlin.math.min
@@ -92,7 +91,7 @@ class MaskOverlayController(
     }
 
     private val windowManager = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-    private var rootView: FrameLayout? = null
+    private val activeViews = mutableListOf<View>()
     private var lastSignature: String = ""
 
     fun render(response: AndroidAnalysisResponse?) {
@@ -109,55 +108,38 @@ class MaskOverlayController(
         }
 
         val signature = AndroidMaskOverlayPlanner.signature(specs)
-        if (signature == lastSignature && rootView?.isAttachedToWindow == true) {
+        if (signature == lastSignature && activeViews.isNotEmpty()) {
             return
         }
 
-        val root = ensureRootView()
-        root.removeAllViews()
+        clearViews()
         specs.forEach { spec ->
-            root.addView(createMaskView(spec), createMaskLayoutParams(spec))
+            val maskView = createMaskView(spec)
+            windowManager.addView(maskView, createMaskLayoutParams(spec))
+            activeViews += maskView
         }
         Log.d(TAG, "render maskCount=${specs.size} signature=$signature")
         lastSignature = signature
     }
 
     fun clear() {
-        val root = rootView ?: return
-        try {
-            windowManager.removeView(root)
-        } catch (_: IllegalArgumentException) {
-            // The view may already be detached during service shutdown.
-        } finally {
-            rootView = null
-            lastSignature = ""
-        }
+        clearViews()
+        lastSignature = ""
     }
 
-    private fun ensureRootView(): FrameLayout {
-        rootView?.let { return it }
+    private fun clearViews() {
+        if (activeViews.isEmpty()) return
 
-        val root = FrameLayout(service).apply {
-            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            setBackgroundColor(Color.TRANSPARENT)
+        val viewsToRemove = activeViews.toList()
+        activeViews.clear()
+
+        viewsToRemove.forEach { view ->
+            try {
+                windowManager.removeView(view)
+            } catch (_: IllegalArgumentException) {
+                // The view may already be detached during service shutdown.
+            }
         }
-
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
-        }
-
-        windowManager.addView(root, params)
-        rootView = root
-        return root
     }
 
     private fun createMaskView(spec: MaskOverlaySpec): TextView {
@@ -176,10 +158,19 @@ class MaskOverlayController(
         }
     }
 
-    private fun createMaskLayoutParams(spec: MaskOverlaySpec): FrameLayout.LayoutParams {
-        return FrameLayout.LayoutParams(spec.width, spec.height).apply {
-            leftMargin = spec.left
-            topMargin = spec.top
+    private fun createMaskLayoutParams(spec: MaskOverlaySpec): WindowManager.LayoutParams {
+        return WindowManager.LayoutParams(
+            spec.width,
+            spec.height,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = spec.left
+            y = spec.top
         }
     }
 }

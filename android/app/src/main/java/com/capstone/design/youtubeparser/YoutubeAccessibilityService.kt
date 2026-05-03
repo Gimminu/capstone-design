@@ -32,6 +32,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
     private val maskOverlayController by lazy { MaskOverlayController(this) }
     @Volatile private var analysisInFlight = false
     @Volatile private var pendingParseAfterAnalysis = false
+    @Volatile private var overlayRevision = 0L
 
     private val parseRunnable = Runnable {
         parseAndUploadCurrentWindow()
@@ -60,6 +61,10 @@ class YoutubeAccessibilityService : AccessibilityService() {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
             AccessibilityEvent.TYPE_VIEW_SCROLLED,
             AccessibilityEvent.TYPE_WINDOWS_CHANGED -> {
+                if (shouldClearOverlayImmediately(event.eventType)) {
+                    clearMaskOverlay()
+                }
+
                 handler.removeCallbacks(parseRunnable)
 
                 val delayMs = when (event.eventType) {
@@ -183,6 +188,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
         if (shouldUpload) {
             lastUploadAt = now
         }
+        val snapshotOverlayRevision = overlayRevision
         analysisInFlight = true
 
         Thread {
@@ -205,7 +211,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
                     .copy(packageName = currentPackage)
                 analysisForOverlay = analysis
                 handler.post {
-                    updateMaskOverlay(currentPackage, analysis)
+                    updateMaskOverlay(currentPackage, analysis, snapshotOverlayRevision)
                 }
                 AnalysisDiagnosticsStore.saveAttempt(applicationContext, analysis)
 
@@ -231,7 +237,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
             } finally {
                 if (analysisForOverlay == null) {
                     handler.post {
-                        updateMaskOverlay(currentPackage, null)
+                        updateMaskOverlay(currentPackage, null, snapshotOverlayRevision)
                     }
                 }
                 releaseAnalysisGate()
@@ -239,11 +245,24 @@ class YoutubeAccessibilityService : AccessibilityService() {
         }.start()
     }
 
-    private fun updateMaskOverlay(currentPackage: String, analysis: AndroidAnalysisAttempt?) {
+    private fun updateMaskOverlay(
+        currentPackage: String,
+        analysis: AndroidAnalysisAttempt?,
+        snapshotOverlayRevision: Long
+    ) {
         if (currentPackage != lastObservedPackage) {
             Log.d(
                 TAG,
                 "skip mask overlay: stale package current=$currentPackage observed=$lastObservedPackage"
+            )
+            clearMaskOverlay()
+            return
+        }
+
+        if (snapshotOverlayRevision != overlayRevision) {
+            Log.d(
+                TAG,
+                "skip mask overlay: stale overlay revision snapshot=$snapshotOverlayRevision current=$overlayRevision"
             )
             maskOverlayController.clear()
             return
@@ -265,7 +284,15 @@ class YoutubeAccessibilityService : AccessibilityService() {
     }
 
     private fun clearMaskOverlay() {
+        overlayRevision += 1
+        lastSnapshotSignature = null
         maskOverlayController.clear()
+    }
+
+    private fun shouldClearOverlayImmediately(eventType: Int): Boolean {
+        return eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
+            eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+            eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED
     }
 
     private fun extractVisibleTextNodesFromCurrentWindow(currentPackage: String): List<ParsedTextNode> {
