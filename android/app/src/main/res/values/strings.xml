@@ -10,6 +10,9 @@
     <string name="analysis_endpoint_label">분석 API 주소</string>
     <string name="analysis_endpoint_hint">예: 100.95.209.72:8000</string>
     <string name="save_analysis_endpoint">분석 API 저장</string>
+    <string name="analysis_sensitivity_label">분석 민감도</string>
+    <string name="analysis_sensitivity_value">분석 민감도: %1$d</string>
+    <string name="analysis_sensitivity_help">0은 Android 마스킹을 끄고, 값이 높을수록 backend가 더 적극적으로 판정합니다.</string>
     <string name="analysis_diagnostics_label">최근 분석 진단</string>
     <string name="analysis_diagnostics_empty">아직 분석 기록이 없습니다. 접근성 서비스를 켠 뒤 대상 앱 댓글 화면을 열어주세요.</string>
     <string name="analysis_diagnostics_value">시간: %1$s\n상태: %2$s\n대상 앱: %3$s\n댓글 수: %4$d\n마스킹 가능 댓글 수: %5$d\n백엔드 filtered_count: %6$d\n지연: %7$dms\n주소: %8$s\n근거 샘플:\n%9$s\n오류: %10$s</string>

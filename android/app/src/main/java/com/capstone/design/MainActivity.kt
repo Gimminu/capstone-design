@@ -12,11 +12,14 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.capstone.design.youtubeparser.AnalysisDiagnosticsStore
 import com.capstone.design.youtubeparser.AnalysisEndpointStore
+import com.capstone.design.youtubeparser.AnalysisSensitivityStore
 import com.capstone.design.youtubeparser.UploadEndpointStore
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.slider.Slider
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
 
@@ -25,6 +28,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var analysisEndpointInput: EditText
     private lateinit var savedAnalysisEndpointText: TextView
     private lateinit var analysisDiagnosticsText: TextView
+    private lateinit var analysisSensitivityValueText: TextView
+    private lateinit var analysisSensitivitySlider: Slider
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,11 +47,15 @@ class MainActivity : AppCompatActivity() {
         analysisEndpointInput = findViewById(R.id.analysisEndpointInput)
         savedAnalysisEndpointText = findViewById(R.id.savedAnalysisEndpointText)
         analysisDiagnosticsText = findViewById(R.id.analysisDiagnosticsText)
+        analysisSensitivityValueText = findViewById(R.id.analysisSensitivityValueText)
+        analysisSensitivitySlider = findViewById(R.id.analysisSensitivitySlider)
 
         serverEndpointInput.setText(UploadEndpointStore.getRawInput(this))
         analysisEndpointInput.setText(AnalysisEndpointStore.getRawInput(this))
+        analysisSensitivitySlider.value = AnalysisSensitivityStore.get(this).toFloat()
         renderResolvedEndpoint()
         renderResolvedAnalysisEndpoint()
+        renderAnalysisSensitivity()
         renderAnalysisDiagnostics()
 
         findViewById<MaterialButton>(R.id.saveEndpointButton).setOnClickListener {
@@ -59,6 +68,12 @@ class MainActivity : AppCompatActivity() {
             AnalysisEndpointStore.saveRawInput(this, analysisEndpointInput.text?.toString().orEmpty())
             renderResolvedAnalysisEndpoint()
             Toast.makeText(this, getString(R.string.analysis_endpoint_saved), Toast.LENGTH_SHORT).show()
+        }
+
+        analysisSensitivitySlider.addOnChangeListener { _, value, fromUser ->
+            if (!fromUser) return@addOnChangeListener
+            AnalysisSensitivityStore.save(this, value.roundToInt())
+            renderAnalysisSensitivity()
         }
 
         findViewById<MaterialButton>(R.id.openAccessibilityButton).setOnClickListener {
@@ -85,6 +100,11 @@ class MainActivity : AppCompatActivity() {
     private fun renderResolvedAnalysisEndpoint() {
         val resolved = AnalysisEndpointStore.resolveAnalyzeUrl(this)
         savedAnalysisEndpointText.text = getString(R.string.saved_analysis_endpoint, resolved)
+    }
+
+    private fun renderAnalysisSensitivity() {
+        val sensitivity = AnalysisSensitivityStore.get(this)
+        analysisSensitivityValueText.text = getString(R.string.analysis_sensitivity_value, sensitivity)
     }
 
     private fun renderAnalysisDiagnostics() {

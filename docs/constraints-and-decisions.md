@@ -21,7 +21,7 @@
 | Android 검증 환경 | 단위 테스트/빌드와 실제 접근성 이벤트 검증이 분리됨 | 로컬 빌드 성공만으로 YouTube/Instagram/TikTok 댓글 수집 품질을 보장할 수 없음 | unit test와 APK build로 계약/컴파일을 검증하고, 실사용 수집 품질은 저장된 snapshot/result JSON으로 추적 |
 | Android 빌드 JDK | 현재 시스템 기본 JDK 24에서 Gradle Android unit test 태스크 생성 오류가 발생함 | 테스트가 코드 오류처럼 보일 수 있고 재현성이 떨어짐 | Android Studio 내장 JBR을 `JAVA_HOME`으로 지정해 테스트/빌드 명령을 표준화 |
 | Evidence span | backend boolean 판정과 실제 마스킹 가능한 span은 항상 일치하지 않음 | span 없는 positive를 바로 차단하면 오탐처럼 보이거나 Android overlay에서 적용 위치를 특정할 수 없음 | 원 분석 결과는 보존하되, 화면 적용/차단 가능 집계는 evidence span이 있는 결과로 제한 |
-| Android YouTube 접근성 트리 | YouTube 검색 결과/Shorts 카드는 실제 제목이 일반 text node가 아니라 큰 `contentDescription` 안에 들어가는 경우가 있음 | backend가 분석할 후보 자체가 누락되거나, 반대로 큰 카드 bounds를 그대로 쓰면 썸네일 전체가 가려짐 | `contentDescription`에서 제목만 분리하고, bounds는 전체 카드가 아니라 제목 영역에 가까운 작은 영역으로 축소 |
+| Android YouTube 접근성 트리 | YouTube 검색 결과/Shorts 카드는 실제 제목이 일반 text node가 아니라 큰 `contentDescription` 안에 들어가는 경우가 있음 | backend가 분석할 후보 자체가 누락되거나, 반대로 큰 카드 bounds를 그대로 쓰면 썸네일/카드 위에 떠 있는 오버레이가 생김 | `contentDescription` only composite card는 마스킹 후보에서 제외하고, 실제 text node bounds가 있는 항목만 overlay 적용 |
 | 이미지 내부 텍스트 | YouTube 썸네일/영상 프레임에 박힌 자막형 텍스트는 접근성 노드에 텍스트로 노출되지 않음 | 현재 접근성 기반 수집만으로는 모델에 전달할 문자열이 없어 마스킹 불가 | OCR/screenshot 분석은 별도 spike로 분리하고, 그 전까지는 이미지 전체 blanket masking 금지 |
 | 모바일 overlay UX | Android는 DOM span wrapper가 불가능하고 좌표 기반 overlay만 가능함 | 정확한 단어 위치를 모르면 `***` 또는 큰 박스가 어색하게 보일 수 있음 | 입력/짧은 텍스트는 compact token, 제목/큰 영역은 작은 chip 또는 축소 bounds로 표시하고 전체 카드 마스킹은 피함 |
 
@@ -111,11 +111,11 @@
 - 대안 보류 이유: 오탐처럼 보이는 결과가 늘고, 특히 Android에서는 어떤 화면 좌표를 가려야 하는지 분리하기 어렵다.
 - 다음 단계: UI에서 “모델 유해 후보 수”와 “마스킹 가능 span 수”를 분리해서 보여줄지 검토한다.
 
-### Decision 10. Android YouTube는 접근성 텍스트와 OCR 대상을 분리
+### Decision 10. Android YouTube는 실제 text bounds와 OCR 대상을 분리
 
-- 선택: 접근성 트리에 노출된 텍스트와 이미지/썸네일 내부 텍스트를 같은 문제로 다루지 않는다.
-- 이유: 접근성 텍스트는 backend에 바로 보낼 수 있지만, 이미지 내부 텍스트는 OCR 없이는 문자열 후보가 존재하지 않는다.
-- 적용: YouTube `contentDescription`에서 제목만 분리해 backend 후보로 보내고, 큰 카드 bounds는 제목 영역으로 축소한다.
+- 선택: 접근성 트리에 실제 text bounds로 노출된 텍스트와, `contentDescription` only 카드/이미지 내부 텍스트를 같은 문제로 다루지 않는다.
+- 이유: `contentDescription`은 카드 설명 문자열일 뿐 글자별 좌표가 아니어서 evidence span을 화면 위치로 안정적으로 투영할 수 없다.
+- 적용: YouTube `contentDescription` only composite card는 화면 마스킹 후보에서 제외하고, 실제 text node bounds가 있는 제목/댓글/입력 영역만 overlay로 렌더링한다.
 - 대안: 썸네일 또는 카드 전체를 “민감 표현”으로 덮는다.
 - 대안 보류 이유: 사용자가 정상 썸네일까지 볼 수 없고, 모델이 실제 이미지 텍스트를 본 것이 아니므로 근거 기반 마스킹이라고 보기 어렵다.
 - 다음 단계: OCR/screenshot spike를 별도 이슈로 분리해 성능, 배터리, 개인정보, Android 권한 제약을 먼저 검증한다.

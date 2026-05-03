@@ -34,7 +34,7 @@ class YoutubeAnalysisTargetExtractorTest {
     }
 
     @Test
-    fun extractTargets_extractsTitleFromCompositeSearchResultContentDescriptions() {
+    fun extractTargets_skipsCompositeSearchResultContentDescriptionsWithoutExactTextBounds() {
         val targets = YoutubeAnalysisTargetExtractor.extractTargets(
             listOf(
                 contentDescriptionNode(
@@ -49,13 +49,13 @@ class YoutubeAnalysisTargetExtractorTest {
         )
 
         assertEquals(
-            listOf("🔥\"TLqkf 또 보여줘야 돼!\" : 식케이", "What is 'Tlqkf'?"),
+            listOf("🔥\"TLqkf 또 보여줘야 돼!\" : 식케이"),
             targets.map { it.commentText }
         )
     }
 
     @Test
-    fun extractTargets_extractsVisibleTitleFromLargeVideoCardDescription() {
+    fun extractTargets_skipsLargeVideoCardDescriptionWithoutExactTextBounds() {
         val targets = YoutubeAnalysisTargetExtractor.extractTargets(
             listOf(
                 contentDescriptionNode(
@@ -68,12 +68,11 @@ class YoutubeAnalysisTargetExtractorTest {
             )
         )
 
-        assertEquals(listOf("🔥\"Tlqkf 또 보여줘야 돼!\" : 식케이 (Sik-K), Lil Moshpit - LOV3"), targets.map { it.commentText })
-        assertEquals(BoundsRect(160, 1266, 975, 1394), targets.single().boundsInScreen)
+        assertTrue(targets.isEmpty())
     }
 
     @Test
-    fun extractTargets_extractsKoreanMobileTitleFromContentDescriptionMetadata() {
+    fun extractTargets_skipsKoreanMobileContentDescriptionMetadataWithoutExactTextBounds() {
         val targets = YoutubeAnalysisTargetExtractor.extractTargets(
             listOf(
                 contentDescriptionNode(
@@ -86,12 +85,11 @@ class YoutubeAnalysisTargetExtractorTest {
             )
         )
 
-        assertEquals(listOf("개새끼 - 나무위키:대문"), targets.map { it.commentText })
-        assertEquals(BoundsRect(160, 400, 975, 496), targets.single().boundsInScreen)
+        assertTrue(targets.isEmpty())
     }
 
     @Test
-    fun extractTargets_removesChannelNameBeforeEnglishViewMetadata() {
+    fun extractTargets_skipsEnglishViewMetadataWithoutExactTextBounds() {
         val targets = YoutubeAnalysisTargetExtractor.extractTargets(
             listOf(
                 contentDescriptionNode(
@@ -104,7 +102,7 @@ class YoutubeAnalysisTargetExtractorTest {
             )
         )
 
-        assertEquals(listOf("ssibal 뜻"), targets.map { it.commentText })
+        assertTrue(targets.isEmpty())
     }
 
     @Test

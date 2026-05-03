@@ -10,6 +10,12 @@
       "minimum": 0,
       "description": "Unix timestamp (초)"
     },
+    "sensitivity": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 100,
+      "description": "필터 민감도. 0은 Android 분석에서도 차단하지 않음"
+    },
     "comments": {
       "type": "array",
       "items": {

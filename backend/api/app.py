@@ -47,6 +47,7 @@ class AndroidComment(BaseModel):
 class AndroidRequest(BaseModel):
     timestamp: int
     comments: list[AndroidComment]
+    sensitivity: int | None = None
 
 
 class EvidenceSpan(BaseModel):
@@ -465,7 +466,7 @@ async def analyze_android(req: AndroidRequest):
     """Android App — 배치 분석 (boundsInScreen 보존)."""
     started = time.perf_counter()
     raw = req.model_dump()
-    result = pipeline.analyze_android_batch(raw)
+    result = pipeline.analyze_android_batch(raw, sensitivity=req.sensitivity)
     elapsed_ms = (time.perf_counter() - started) * 1000
     print(f"[TIMING] /analyze_android total={elapsed_ms:.1f}ms count={len(req.comments)}")
     return result

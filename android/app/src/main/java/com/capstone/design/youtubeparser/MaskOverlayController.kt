@@ -221,7 +221,7 @@ class MaskOverlayController(
     }
 
     private val windowManager = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-    private val activeViews = mutableListOf<View>()
+    private val activeViews = mutableListOf<TextView>()
     private var lastSignature: String = ""
 
     fun render(response: AndroidAnalysisResponse?) {
@@ -242,29 +242,32 @@ class MaskOverlayController(
             return
         }
 
-        clearViews()
-
-        val nextViews = mutableListOf<View>()
         try {
-            specs.forEach { spec ->
-                val maskView = createMaskView(spec)
-                windowManager.addView(maskView, createMaskLayoutParams(spec))
-                nextViews += maskView
+            specs.forEachIndexed { index, spec ->
+                val existing = activeViews.getOrNull(index)
+                if (existing == null) {
+                    val maskView = createMaskView(spec)
+                    windowManager.addView(maskView, createMaskLayoutParams(spec))
+                    activeViews += maskView
+                } else {
+                    existing.text = spec.label
+                    windowManager.updateViewLayout(existing, createMaskLayoutParams(spec))
+                }
             }
 
-            activeViews += nextViews
-            Log.d(TAG, "render maskCount=${specs.size} signature=$signature")
-            lastSignature = signature
-        } catch (error: RuntimeException) {
-            nextViews.forEach { view ->
+            while (activeViews.size > specs.size) {
+                val view = activeViews.removeAt(activeViews.lastIndex)
                 try {
                     windowManager.removeView(view)
                 } catch (_: IllegalArgumentException) {
                     // The view may already be detached after a fast window transition.
                 }
             }
-            activeViews.clear()
-            lastSignature = ""
+
+            Log.d(TAG, "render maskCount=${specs.size} signature=$signature")
+            lastSignature = signature
+        } catch (error: RuntimeException) {
+            clearViews()
             Log.w(TAG, "render mask overlay failed", error)
         }
     }
@@ -279,6 +282,7 @@ class MaskOverlayController(
 
         val viewsToRemove = activeViews.toList()
         activeViews.clear()
+        lastSignature = ""
 
         viewsToRemove.forEach { view ->
             try {
