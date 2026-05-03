@@ -156,7 +156,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
 
         Log.d(TAG, "package=$currentPackage parsed analysis target count=${comments.size}")
 
-        if (currentPackage == YOUTUBE_PACKAGE && comments.size <= 3) {
+        if (shouldLogRawNodes() && currentPackage == YOUTUBE_PACKAGE && comments.size <= 3) {
             nodes.take(80).forEachIndexed { index, node ->
                 Log.d(
                     TAG,
@@ -166,7 +166,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
             }
         }
 
-        if (currentPackage == INSTAGRAM_PACKAGE && comments.isEmpty()) {
+        if (shouldLogRawNodes() && currentPackage == INSTAGRAM_PACKAGE && comments.isEmpty()) {
             nodes.take(40).forEachIndexed { index, node ->
                 Log.d(
                     TAG,
@@ -175,7 +175,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
             }
         }
 
-        if ((currentPackage == TIKTOK_PACKAGE || currentPackage == TIKTOK_ALT_PACKAGE) && comments.isEmpty()) {
+        if (shouldLogRawNodes() && (currentPackage == TIKTOK_PACKAGE || currentPackage == TIKTOK_ALT_PACKAGE) && comments.isEmpty()) {
             nodes.take(40).forEachIndexed { index, node ->
                 Log.d(
                     TAG,
@@ -334,6 +334,10 @@ class YoutubeAccessibilityService : AccessibilityService() {
         return eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
             eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED
+    }
+
+    private fun shouldLogRawNodes(): Boolean {
+        return Log.isLoggable(TAG, Log.VERBOSE)
     }
 
     private fun extractVisibleTextNodesFromCurrentWindow(currentPackage: String): List<ParsedTextNode> {
