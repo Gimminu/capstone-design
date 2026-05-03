@@ -127,6 +127,24 @@ class PipelineRegressionTest(unittest.TestCase):
         self.assertTrue(result["results"][1]["is_offensive"])
         self.assertTrue(result["results"][1]["evidence_spans"])
 
+    def test_android_batch_honors_sensitivity_zero(self):
+        raw = {
+            "timestamp": 1710000000000,
+            "sensitivity": 0,
+            "comments": [
+                {
+                    "commentText": "시발 뭐하는 거야",
+                    "boundsInScreen": {"left": 0, "top": 10, "right": 300, "bottom": 60},
+                },
+            ],
+        }
+
+        result = self.pipeline.analyze_android_batch(raw)
+
+        self.assertEqual(1, len(result["results"]))
+        self.assertFalse(result["results"][0]["is_offensive"])
+        self.assertEqual([], result["results"][0]["evidence_spans"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -34,13 +34,10 @@ object YoutubeAnalysisTargetExtractor {
         if (!node.isVisibleToUser) return null
         if (width < 24 || height < 16) return null
         if (contentDescriptionOnly && isCompositeYoutubeCardDescription(lower, width, height)) {
-            val isShortsGridCard = isShortsGridCardDescription(lower, width, height)
-            val title = extractCompositeYoutubeTitle(text) ?: return null
-            if (!isPlausibleContentTitle(title)) return null
-            return ParsedComment(
-                commentText = title,
-                boundsInScreen = estimateCompositeTitleBounds(node, isShortsGridCard)
-            )
+            // Composite card descriptions do not expose reliable glyph bounds.
+            // Masking them creates floating overlays on thumbnails/cards, so keep
+            // the Android path limited to nodes with real text bounds.
+            return null
         }
         if (text.length !in 2..220) return null
         if (text.startsWith("@")) return null
@@ -76,6 +73,14 @@ object YoutubeAnalysisTargetExtractor {
 
     private fun isYoutubeUiLabel(text: String, lower: String): Boolean {
         return lower == "filters" ||
+            lower == "clear" ||
+            lower == "voice search" ||
+            lower == "search with your voice" ||
+            lower == "cast. disconnected" ||
+            lower == "cast" ||
+            lower == "more options" ||
+            lower == "more actions" ||
+            lower == "action menu" ||
             lower == "all" ||
             lower == "shorts" ||
             lower == "unwatched" ||
@@ -88,9 +93,14 @@ object YoutubeAnalysisTargetExtractor {
             lower == "premium controls" ||
             lower == "expand mini player" ||
             lower == "new content available" ||
+            lower == "subscriptions: new content is available" ||
+            lower == "open navigation menu" ||
+            lower == "navigate up" ||
             lower.startsWith("go to channel ") ||
             lower.contains("official artist channel") ||
             lower.endsWith(" subscribers") ||
+            lower.startsWith("voice search") ||
+            lower.startsWith("cast.") ||
             text == "전체" ||
             text == "동영상" ||
             text == "최근 업로드" ||
@@ -105,118 +115,6 @@ object YoutubeAnalysisTargetExtractor {
         return text.any { it.code in 0xAC00..0xD7A3 } && text.length >= 6
     }
 
-    private fun isPlausibleContentTitle(text: String): Boolean {
-        val normalized = text.replace(Regex("\\s+"), " ").trim()
-        val lower = normalized.lowercase()
-        if (normalized.length !in 2..180) return false
-        if (isYoutubeUiLabel(normalized, lower)) return false
-        if (looksLikeRelativeTime(normalized)) return false
-        if (lower.startsWith("http://") || lower.startsWith("https://")) return false
-        if (lower.contains(" views") || lower.contains("조회수")) return false
-        return true
-    }
-
-    private fun extractCompositeYoutubeTitle(text: String): String? {
-        val normalized = text.replace(Regex("\\s+"), " ").trim()
-        if (normalized.isBlank()) return null
-
-        val metadataStart = Regex(
-            pattern = """\s+-\s+(?:(?:\d+\s+hours?(?:,\s*\d+\s+minutes?)?)|(?:\d+\s+minutes?(?:,\s*\d+\s+seconds?)?)|(?:\d+\s+seconds?)|(?:\d{1,2}:\d{2}(?::\d{2})?)|(?:\d+\s*시간)|(?:\d+\s*분(?:\s*\d+\s*초)?)|(?:\d+\s*초))\s+-\s+go to channel\s+""",
-            option = RegexOption.IGNORE_CASE
-        ).find(normalized)?.range?.first
-        val shortsMetadataStart = Regex(
-            pattern = """,\s*[\d,.]+\s*(?:thousand|million|billion|[kmb])?\s+views,\s*""",
-            option = RegexOption.IGNORE_CASE
-        ).find(normalized)?.range?.first
-        val koreanMetadataStart = Regex(
-            pattern = """(?:,\s*|\s+-\s+|\s+·\s+)조회수\s*[\d,.]+[천만억]?\s*회?(?:,\s*|\s+-\s+|\s+·\s+)\d+\s*(?:초|분|시간|일|주|개월|년)\s*전""",
-            option = RegexOption.IGNORE_CASE
-        ).find(normalized)?.range?.first
-
-        val titleParts = when {
-            metadataStart != null -> normalized.substring(0, metadataStart) to false
-            shortsMetadataStart != null -> normalized.substring(0, shortsMetadataStart) to true
-            koreanMetadataStart != null -> normalized.substring(0, koreanMetadataStart) to true
-            normalized.lowercase().contains(" - go to channel ") ->
-                normalized.substringBefore(" - Go to channel ").substringBefore(" - go to channel ") to false
-            normalized.lowercase().endsWith(" - play video") -> normalized.substringBeforeLast(" - ") to false
-            normalized.lowercase().endsWith(" - play short") -> normalized.substringBeforeLast(" - ") to false
-            else -> return null
-        }
-        val rawTitle = titleParts.first.trim()
-        val titleWithoutChannelSuffix = if (titleParts.second) {
-            stripLikelyChannelSuffix(rawTitle)
-        } else {
-            rawTitle
-        }
-        val titleWithoutInternalSuffix = titleWithoutChannelSuffix.indexOf('_')
-            .takeIf { it > 0 }
-            ?.let { titleWithoutChannelSuffix.substring(0, it).trim() }
-            ?: titleWithoutChannelSuffix
-
-        return titleWithoutInternalSuffix
-            .removeSuffix("-")
-            .trim()
-            .ifBlank { null }
-    }
-
-    private fun stripLikelyChannelSuffix(rawTitle: String): String {
-        val normalized = rawTitle.replace(Regex("\\s+"), " ").trim()
-        val commaParts = normalized.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-        if (commaParts.size < 2) return normalized
-
-        val suffix = commaParts.last()
-        val prefix = commaParts.dropLast(1).joinToString(", ").trim()
-        if (prefix.length < 2) return normalized
-
-        val suffixLower = suffix.lowercase()
-        val suffixLooksLikeChannel =
-            suffix.length in 2..48 &&
-            !looksLikeRelativeTime(suffix) &&
-            !suffixLower.contains("조회수") &&
-            !suffixLower.contains("views") &&
-            !suffixLower.contains("play video") &&
-            !suffixLower.contains("play short")
-
-        return if (suffixLooksLikeChannel) prefix else normalized
-    }
-
-    private fun estimateCompositeTitleBounds(node: ParsedTextNode, isShortsGridCard: Boolean): BoundsRect {
-        val width = node.right - node.left
-        val height = node.bottom - node.top
-        val horizontalInsetLeft = minOf(160, maxOf(0, width / 6))
-        val horizontalInsetRight = minOf(105, maxOf(0, width / 10))
-
-        if (isShortsGridCard) {
-            val titleHeight = minOf(76, maxOf(48, height / 9))
-            return BoundsRect(
-                left = node.left,
-                top = node.top,
-                right = node.right,
-                bottom = minOf(node.bottom, node.top + titleHeight)
-            )
-        }
-
-        if (height >= 520) {
-            val titleTop = node.top + (height * 0.80f).toInt()
-            val titleHeight = minOf(128, maxOf(56, height / 5))
-            return BoundsRect(
-                left = node.left + horizontalInsetLeft,
-                top = titleTop,
-                right = node.right - horizontalInsetRight,
-                bottom = minOf(node.bottom, titleTop + titleHeight)
-            )
-        }
-
-        val titleBottom = minOf(node.bottom, node.top + minOf(96, maxOf(48, (height * 0.65f).toInt())))
-        return BoundsRect(
-            left = node.left + horizontalInsetLeft,
-            top = node.top,
-            right = node.right - horizontalInsetRight,
-            bottom = titleBottom
-        )
-    }
-
     private fun isCompositeYoutubeCardDescription(lower: String, width: Int, height: Int): Boolean {
         return (width >= 900 && height >= 180) ||
             lower.contains(" - go to channel ") ||
@@ -225,12 +123,6 @@ object YoutubeAnalysisTargetExtractor {
             lower.contains(" views,") && lower.contains("play short") ||
             lower.contains(" views - ") ||
             lower.contains("조회수") && lower.contains("전")
-    }
-
-    private fun isShortsGridCardDescription(lower: String, width: Int, height: Int): Boolean {
-        return height >= 240 &&
-            height > width &&
-            (lower.endsWith(" - play short") || lower.contains("play short"))
     }
 
     private fun looksLikeRelativeTime(text: String): Boolean {

@@ -31,7 +31,7 @@ class MaskOverlayPlannerTest {
         val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 320, screenHeight = 640)
 
         assertEquals(1, specs.size)
-        assertEquals("•••", specs.single().label)
+        assertEquals("***", specs.single().label)
         assertTrue(specs.single().width < 150)
         assertTrue(specs.single().height <= 48)
     }
@@ -95,9 +95,65 @@ class MaskOverlayPlannerTest {
         val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 1080, screenHeight = 2400)
 
         assertEquals(1, specs.size)
-        assertEquals("•••", specs.single().label)
+        assertEquals("***", specs.single().label)
         assertTrue(specs.single().width < 449)
         assertTrue(specs.single().height <= 48)
+    }
+
+    @Test
+    fun buildSpecs_doesNotFallbackToWholeBoundsWhenSpanMappingFails() {
+        val response = responseOf(
+            resultOf(
+                offensive = true,
+                bounds = BoundsRect(40, 120, 540, 180),
+                spans = listOf(EvidenceSpan("욕", 99, 100, 0.99)),
+                original = "짧은 문장"
+            )
+        )
+
+        val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 1080, screenHeight = 2400)
+
+        assertTrue(specs.isEmpty())
+    }
+
+    @Test
+    fun buildSpecs_rejectsLargeUnstableTextContainers() {
+        val response = responseOf(
+            resultOf(
+                offensive = true,
+                bounds = BoundsRect(0, 260, 1040, 520),
+                spans = listOf(EvidenceSpan("시발", 0, 2, 0.99)),
+                original = "시발 " + "긴 설명 ".repeat(40)
+            )
+        )
+
+        val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 1080, screenHeight = 2400)
+
+        assertTrue(specs.isEmpty())
+    }
+
+    @Test
+    fun buildPlan_reportsCandidatesRenderedAndSkippedUnstableCounts() {
+        val response = responseOf(
+            resultOf(
+                offensive = true,
+                bounds = BoundsRect(40, 100, 240, 150),
+                spans = listOf(EvidenceSpan("시발", 0, 2, 0.99)),
+                original = "시발 뭐하는 거야"
+            ),
+            resultOf(
+                offensive = true,
+                bounds = BoundsRect(0, 260, 1040, 520),
+                spans = listOf(EvidenceSpan("시발", 0, 2, 0.99)),
+                original = "시발 " + "긴 설명 ".repeat(40)
+            )
+        )
+
+        val plan = AndroidMaskOverlayPlanner.buildPlan(response, screenWidth = 1080, screenHeight = 2400)
+
+        assertEquals(2, plan.candidateCount)
+        assertEquals(1, plan.specs.size)
+        assertEquals(1, plan.skippedUnstableCount)
     }
 
 
@@ -127,6 +183,28 @@ class MaskOverlayPlannerTest {
     }
 
     @Test
+    fun buildSpecs_suppressesNearDuplicateOverlappingMasks() {
+        val response = responseOf(
+            resultOf(
+                offensive = true,
+                bounds = BoundsRect(40, 100, 240, 150),
+                spans = listOf(EvidenceSpan("tlqkf", 0, 5, 0.99)),
+                original = "tlqkf"
+            ),
+            resultOf(
+                offensive = true,
+                bounds = BoundsRect(44, 104, 244, 154),
+                spans = listOf(EvidenceSpan("tlqkf", 0, 5, 0.99)),
+                original = "tlqkf"
+            )
+        )
+
+        val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 320, screenHeight = 640)
+
+        assertEquals(1, specs.size)
+    }
+
+    @Test
     fun buildSpecs_usesReadableLabelForLargeTitleRows() {
         val response = responseOf(
             resultOf(
@@ -140,9 +218,48 @@ class MaskOverlayPlannerTest {
         val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 1080, screenHeight = 2400)
 
         assertEquals(1, specs.size)
-        assertEquals("•••", specs.single().label)
+        assertEquals("***", specs.single().label)
         assertNotEquals(815, specs.single().width)
         assertTrue(specs.single().height <= 48)
+    }
+
+    @Test
+    fun buildSpecs_placesLateSpansOnEstimatedLaterLines() {
+        val original = "초반에는 안전한 설명이 길게 이어지고 뒤쪽 줄에서 시발 같은 표현이 등장하는 긴 제목"
+        val spanStart = original.indexOf("시발")
+        val response = responseOf(
+            resultOf(
+                offensive = true,
+                bounds = BoundsRect(40, 100, 520, 236),
+                spans = listOf(EvidenceSpan("시발", spanStart, spanStart + 2, 0.98)),
+                original = original
+            )
+        )
+
+        val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 1080, screenHeight = 2400)
+
+        assertEquals(1, specs.size)
+        assertTrue(specs.single().top > 150)
+        assertTrue(specs.single().height <= 48)
+        assertTrue(specs.single().width < 480)
+    }
+
+    @Test
+    fun buildSpecs_usesBackendCodePointOffsetsForEmojiPrefixedText() {
+        val response = responseOf(
+            resultOf(
+                offensive = true,
+                bounds = BoundsRect(0, 100, 600, 150),
+                spans = listOf(EvidenceSpan("시발", 4, 6, 0.98)),
+                original = "😀😀😀😀시발"
+            )
+        )
+
+        val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 1080, screenHeight = 2400)
+
+        assertEquals(1, specs.size)
+        assertTrue(specs.single().left > 320)
+        assertTrue(specs.single().left < 520)
     }
 
     private fun responseOf(vararg results: AndroidAnalysisResultItem): AndroidAnalysisResponse {

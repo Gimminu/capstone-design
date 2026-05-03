@@ -13,6 +13,11 @@ object AnalysisDiagnosticsStore {
     private const val KEY_COMMENT_COUNT = "analysis_diagnostics_comment_count"
     private const val KEY_OFFENSIVE_COUNT = "analysis_diagnostics_offensive_count"
     private const val KEY_FILTERED_COUNT = "analysis_diagnostics_filtered_count"
+    private const val KEY_OVERLAY_CANDIDATE_COUNT = "analysis_diagnostics_overlay_candidate_count"
+    private const val KEY_OVERLAY_RENDERED_COUNT = "analysis_diagnostics_overlay_rendered_count"
+    private const val KEY_OVERLAY_SKIPPED_UNSTABLE_COUNT = "analysis_diagnostics_overlay_skipped_unstable_count"
+    private const val KEY_VISUAL_CAPTURE_SUPPORTED = "analysis_diagnostics_visual_capture_supported"
+    private const val KEY_VISUAL_CAPTURE_REASON = "analysis_diagnostics_visual_capture_reason"
     private const val KEY_ACTIONABLE_SAMPLES = "analysis_diagnostics_actionable_samples"
     private const val KEY_ERROR = "analysis_diagnostics_error"
 
@@ -27,6 +32,11 @@ object AnalysisDiagnosticsStore {
             .putInt(KEY_COMMENT_COUNT, attempt.commentCount)
             .putInt(KEY_OFFENSIVE_COUNT, attempt.offensiveCount)
             .putInt(KEY_FILTERED_COUNT, attempt.filteredCount)
+            .putInt(KEY_OVERLAY_CANDIDATE_COUNT, attempt.overlayCandidateCount)
+            .putInt(KEY_OVERLAY_RENDERED_COUNT, attempt.overlayRenderedCount)
+            .putInt(KEY_OVERLAY_SKIPPED_UNSTABLE_COUNT, attempt.overlaySkippedUnstableCount)
+            .putBoolean(KEY_VISUAL_CAPTURE_SUPPORTED, attempt.visualCaptureSupported)
+            .putString(KEY_VISUAL_CAPTURE_REASON, attempt.visualCaptureReason)
             .putString(KEY_ACTIONABLE_SAMPLES, attempt.actionableSamples.joinToString("\n"))
             .putString(KEY_ERROR, attempt.error.orEmpty())
             .apply()
@@ -46,6 +56,14 @@ object AnalysisDiagnosticsStore {
             commentCount = prefs.getInt(KEY_COMMENT_COUNT, 0),
             offensiveCount = prefs.getInt(KEY_OFFENSIVE_COUNT, 0),
             filteredCount = prefs.getInt(KEY_FILTERED_COUNT, 0),
+            overlayCandidateCount = prefs.getInt(KEY_OVERLAY_CANDIDATE_COUNT, 0),
+            overlayRenderedCount = prefs.getInt(KEY_OVERLAY_RENDERED_COUNT, 0),
+            overlaySkippedUnstableCount = prefs.getInt(KEY_OVERLAY_SKIPPED_UNSTABLE_COUNT, 0),
+            visualCaptureSupported = prefs.getBoolean(KEY_VISUAL_CAPTURE_SUPPORTED, false),
+            visualCaptureReason = prefs.getString(
+                KEY_VISUAL_CAPTURE_REASON,
+                VisualTextCaptureSupport.REASON_SERVICE_NOT_CONNECTED
+            ).orEmpty(),
             actionableSamples = prefs.getString(KEY_ACTIONABLE_SAMPLES, "").orEmpty()
                 .lines()
                 .map { it.trim() }

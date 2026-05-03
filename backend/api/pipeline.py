@@ -135,7 +135,7 @@ def _threshold_from_sensitivity(sensitivity: int | None, default: float) -> floa
         return default
     if value <= 0:
         return 1.01
-    # 0은 사실상 강한 확신만, 100은 더 공격적으로 판정한다.
+    # 0은 차단을 사실상 비활성화하고, 100은 더 공격적으로 판정한다.
     return max(0.35, min(0.99, 0.95 - (value / 100) * 0.55))
 
 
@@ -489,16 +489,20 @@ class ProfanityPipeline:
 
         return [result if result is not None else _empty_result(texts[index]) for index, result in enumerate(results)]
 
-    def analyze_android_batch(self, raw: dict) -> dict:
+    def analyze_android_batch(self, raw: dict, sensitivity: int | None = None) -> dict:
         """Android 앱 수집 JSON 전체 처리.
 
         0단계 필터 → 분석 → boundsInScreen 보존하여 반환.
         """
         total = len(raw.get("comments", []))
         valid_comments = filter_android_json(raw)
+        request_sensitivity = raw.get("sensitivity") if sensitivity is None else sensitivity
 
         results = []
-        analyses = self.analyze_batch([item["commentText"] for item in valid_comments])
+        analyses = self.analyze_batch(
+            [item["commentText"] for item in valid_comments],
+            sensitivity=request_sensitivity,
+        )
 
         for item, analysis in zip(valid_comments, analyses, strict=True):
             text = item["commentText"]

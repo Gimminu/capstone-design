@@ -23,32 +23,75 @@ data class MaskOverlaySpec(
     val label: String
 )
 
+data class MaskOverlayPlan(
+    val specs: List<MaskOverlaySpec>,
+    val candidateCount: Int,
+    val skippedUnstableCount: Int,
+    val suppressedOverlapCount: Int
+)
+
 object AndroidMaskOverlayPlanner {
     private const val MIN_WIDTH_PX = 24
     private const val MIN_HEIGHT_PX = 16
     private const val MIN_SPAN_MASK_WIDTH_PX = 30
     private const val SPAN_HORIZONTAL_PADDING_PX = 8
     private const val MAX_SPAN_MASK_HEIGHT_PX = 48
+    private const val ESTIMATED_LINE_HEIGHT_PX = 34
     private const val MAX_MASK_COUNT = 24
     private const val MAX_SCREEN_WIDTH_RATIO = 0.88f
     private const val MAX_SCREEN_HEIGHT_RATIO = 0.22f
+    private const val MAX_HIGH_CONFIDENCE_HEIGHT_PX = 160
+    private const val MAX_HIGH_CONFIDENCE_TEXT_LENGTH = 180
+    private const val MAX_HIGH_CONFIDENCE_AREA_RATIO = 0.09f
 
     fun buildSpecs(
         response: AndroidAnalysisResponse?,
         screenWidth: Int,
         screenHeight: Int
     ): List<MaskOverlaySpec> {
+        return buildPlan(response, screenWidth, screenHeight).specs
+    }
+
+    fun buildPlan(
+        response: AndroidAnalysisResponse?,
+        screenWidth: Int,
+        screenHeight: Int
+    ): MaskOverlayPlan {
         if (response == null || screenWidth <= 0 || screenHeight <= 0) {
-            return emptyList()
+            return MaskOverlayPlan(
+                specs = emptyList(),
+                candidateCount = 0,
+                skippedUnstableCount = 0,
+                suppressedOverlapCount = 0
+            )
         }
 
-        return response.results
+        var candidateCount = 0
+        var skippedUnstableCount = 0
+        val rawSpecs = mutableListOf<MaskOverlaySpec>()
+
+        response.results
             .asSequence()
             .filter { it.isOffensive && it.evidenceSpans.isNotEmpty() }
-            .flatMap { toSpecs(it, screenWidth, screenHeight).asSequence() }
-            .distinctBy { "${it.left}|${it.top}|${it.width}|${it.height}" }
-            .take(MAX_MASK_COUNT)
-            .toList()
+            .forEach { item ->
+                candidateCount += 1
+                val specs = toSpecs(item, screenWidth, screenHeight)
+                if (specs.isEmpty()) {
+                    skippedUnstableCount += 1
+                } else {
+                    rawSpecs += specs
+                }
+            }
+
+        val suppressedSpecs = suppressOverlappingSpecs(rawSpecs)
+        val finalSpecs = suppressedSpecs.take(MAX_MASK_COUNT)
+
+        return MaskOverlayPlan(
+            specs = finalSpecs,
+            candidateCount = candidateCount,
+            skippedUnstableCount = skippedUnstableCount,
+            suppressedOverlapCount = (rawSpecs.size - finalSpecs.size).coerceAtLeast(0)
+        )
     }
 
     fun signature(specs: List<MaskOverlaySpec>): String {
@@ -61,8 +104,11 @@ object AndroidMaskOverlayPlanner {
         screenHeight: Int
     ): List<MaskOverlaySpec> {
         val fullSpec = toSpec(item.boundsInScreen, screenWidth, screenHeight) ?: return emptyList()
-        val originalLength = item.original.length
-        if (originalLength <= 0) return listOf(fullSpec)
+        val originalLength = item.original.codePointCount(0, item.original.length)
+        if (originalLength <= 0) return emptyList()
+        if (!hasHighConfidenceTextBounds(fullSpec, originalLength, screenWidth, screenHeight)) {
+            return emptyList()
+        }
 
         val spanSpecs = item.evidenceSpans.mapNotNull { span ->
             toSpanSpec(
@@ -72,7 +118,25 @@ object AndroidMaskOverlayPlanner {
             )
         }
 
-        return spanSpecs.ifEmpty { listOf(fullSpec) }
+        return spanSpecs
+    }
+
+    private fun hasHighConfidenceTextBounds(
+        spec: MaskOverlaySpec,
+        originalLength: Int,
+        screenWidth: Int,
+        screenHeight: Int
+    ): Boolean {
+        if (originalLength > MAX_HIGH_CONFIDENCE_TEXT_LENGTH) return false
+        if (spec.height > MAX_HIGH_CONFIDENCE_HEIGHT_PX) return false
+
+        val screenArea = (screenWidth * screenHeight).coerceAtLeast(1)
+        val specArea = spec.width * spec.height
+        if (specArea.toFloat() / screenArea.toFloat() > MAX_HIGH_CONFIDENCE_AREA_RATIO) {
+            return false
+        }
+
+        return true
     }
 
     private fun toSpec(bounds: BoundsRect, screenWidth: Int, screenHeight: Int): MaskOverlaySpec? {
@@ -111,8 +175,17 @@ object AndroidMaskOverlayPlanner {
         val end = span.end.coerceIn(start, originalLength)
         if (end <= start) return null
 
-        val startRatio = start.toFloat() / originalLength.toFloat()
-        val endRatio = end.toFloat() / originalLength.toFloat()
+        val lineCount = estimateLineCount(fullSpec.height, originalLength)
+        val charsPerLine = ((originalLength + lineCount - 1) / lineCount).coerceAtLeast(1)
+        val lineIndex = (start / charsPerLine).coerceIn(0, lineCount - 1)
+        val lineStart = lineIndex * charsPerLine
+        val lineEnd = min(originalLength, lineStart + charsPerLine).coerceAtLeast(lineStart + 1)
+        val lineLength = (lineEnd - lineStart).coerceAtLeast(1)
+        val localStart = (start - lineStart).coerceIn(0, lineLength)
+        val localEnd = (end - lineStart).coerceIn(localStart + 1, lineLength)
+
+        val startRatio = localStart.toFloat() / lineLength.toFloat()
+        val endRatio = localEnd.toFloat() / lineLength.toFloat()
         val rawLeft = fullSpec.left + (fullSpec.width * startRatio).roundToInt()
         val rawRight = fullSpec.left + (fullSpec.width * endRatio).roundToInt()
 
@@ -120,7 +193,7 @@ object AndroidMaskOverlayPlanner {
             fullSpec.width,
             maxOf(
                 MIN_SPAN_MASK_WIDTH_PX,
-                span.text.ifBlank { "•••" }.length * 18
+                span.text.ifBlank { MASK_LABEL }.length * 18
             )
         )
         val center = (rawLeft + rawRight) / 2
@@ -146,8 +219,9 @@ object AndroidMaskOverlayPlanner {
         val width = right - left
         if (width < MIN_WIDTH_PX) return null
 
-        val height = minOf(fullSpec.height, MAX_SPAN_MASK_HEIGHT_PX).coerceAtLeast(MIN_HEIGHT_PX)
-        val top = fullSpec.top + ((fullSpec.height - height) / 2).coerceAtLeast(0)
+        val lineHeight = (fullSpec.height / lineCount).coerceAtLeast(MIN_HEIGHT_PX)
+        val height = minOf(lineHeight, MAX_SPAN_MASK_HEIGHT_PX).coerceAtLeast(MIN_HEIGHT_PX)
+        val top = fullSpec.top + (lineIndex * lineHeight) + ((lineHeight - height) / 2).coerceAtLeast(0)
 
         return MaskOverlaySpec(
             left = left,
@@ -158,7 +232,47 @@ object AndroidMaskOverlayPlanner {
         )
     }
 
-    private const val MASK_LABEL = "•••"
+    private fun estimateLineCount(height: Int, originalLength: Int): Int {
+        if (height <= MAX_SPAN_MASK_HEIGHT_PX || originalLength <= 20) {
+            return 1
+        }
+
+        return (height / ESTIMATED_LINE_HEIGHT_PX)
+            .coerceAtLeast(1)
+            .coerceAtMost(4)
+    }
+
+    private fun suppressOverlappingSpecs(specs: List<MaskOverlaySpec>): List<MaskOverlaySpec> {
+        val kept = mutableListOf<MaskOverlaySpec>()
+        specs
+            .distinctBy { "${it.left}|${it.top}|${it.width}|${it.height}" }
+            .sortedWith(compareBy<MaskOverlaySpec> { it.top }.thenBy { it.left }.thenBy { it.width * it.height })
+            .forEach { spec ->
+                val overlapsExisting = kept.any { existing ->
+                    overlapRatio(spec, existing) >= 0.65f
+                }
+                if (!overlapsExisting) {
+                    kept += spec
+                }
+            }
+        return kept
+    }
+
+    private fun overlapRatio(left: MaskOverlaySpec, right: MaskOverlaySpec): Float {
+        val overlapLeft = max(left.left, right.left)
+        val overlapTop = max(left.top, right.top)
+        val overlapRight = min(left.left + left.width, right.left + right.width)
+        val overlapBottom = min(left.top + left.height, right.top + right.height)
+        val overlapWidth = overlapRight - overlapLeft
+        val overlapHeight = overlapBottom - overlapTop
+        if (overlapWidth <= 0 || overlapHeight <= 0) return 0f
+
+        val overlapArea = overlapWidth * overlapHeight
+        val smallerArea = min(left.width * left.height, right.width * right.height).coerceAtLeast(1)
+        return overlapArea.toFloat() / smallerArea.toFloat()
+    }
+
+    private const val MASK_LABEL = "***"
 }
 
 class MaskOverlayController(
@@ -169,19 +283,25 @@ class MaskOverlayController(
     }
 
     private val windowManager = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-    private val activeViews = mutableListOf<View>()
+    private val activeViews = mutableListOf<TextView>()
     private var lastSignature: String = ""
 
     fun render(response: AndroidAnalysisResponse?) {
         val metrics = service.resources.displayMetrics
-        val specs = AndroidMaskOverlayPlanner.buildSpecs(
+        val plan = AndroidMaskOverlayPlanner.buildPlan(
             response = response,
             screenWidth = metrics.widthPixels,
             screenHeight = metrics.heightPixels
         )
+        val specs = plan.specs
 
         if (specs.isEmpty()) {
             clear()
+            Log.d(
+                TAG,
+                "render skipped candidates=${plan.candidateCount} unstable=${plan.skippedUnstableCount} " +
+                    "suppressed=${plan.suppressedOverlapCount}"
+            )
             return
         }
 
@@ -190,29 +310,32 @@ class MaskOverlayController(
             return
         }
 
-        clearViews()
-
-        val nextViews = mutableListOf<View>()
         try {
-            specs.forEach { spec ->
-                val maskView = createMaskView(spec)
-                windowManager.addView(maskView, createMaskLayoutParams(spec))
-                nextViews += maskView
+            specs.forEachIndexed { index, spec ->
+                val existing = activeViews.getOrNull(index)
+                if (existing == null) {
+                    val maskView = createMaskView(spec)
+                    windowManager.addView(maskView, createMaskLayoutParams(spec))
+                    activeViews += maskView
+                } else {
+                    existing.text = spec.label
+                    windowManager.updateViewLayout(existing, createMaskLayoutParams(spec))
+                }
             }
 
-            activeViews += nextViews
-            Log.d(TAG, "render maskCount=${specs.size} signature=$signature")
-            lastSignature = signature
-        } catch (error: RuntimeException) {
-            nextViews.forEach { view ->
+            while (activeViews.size > specs.size) {
+                val view = activeViews.removeAt(activeViews.lastIndex)
                 try {
                     windowManager.removeView(view)
                 } catch (_: IllegalArgumentException) {
                     // The view may already be detached after a fast window transition.
                 }
             }
-            activeViews.clear()
-            lastSignature = ""
+
+            Log.d(TAG, "render maskCount=${specs.size} signature=$signature")
+            lastSignature = signature
+        } catch (error: RuntimeException) {
+            clearViews()
             Log.w(TAG, "render mask overlay failed", error)
         }
     }
@@ -227,6 +350,7 @@ class MaskOverlayController(
 
         val viewsToRemove = activeViews.toList()
         activeViews.clear()
+        lastSignature = ""
 
         viewsToRemove.forEach { view ->
             try {

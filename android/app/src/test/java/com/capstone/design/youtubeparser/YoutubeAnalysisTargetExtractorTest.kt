@@ -34,7 +34,7 @@ class YoutubeAnalysisTargetExtractorTest {
     }
 
     @Test
-    fun extractTargets_extractsTitleFromCompositeSearchResultContentDescriptions() {
+    fun extractTargets_skipsCompositeSearchResultContentDescriptionsWithoutExactTextBounds() {
         val targets = YoutubeAnalysisTargetExtractor.extractTargets(
             listOf(
                 contentDescriptionNode(
@@ -49,13 +49,13 @@ class YoutubeAnalysisTargetExtractorTest {
         )
 
         assertEquals(
-            listOf("🔥\"TLqkf 또 보여줘야 돼!\" : 식케이", "What is 'Tlqkf'?"),
+            listOf("🔥\"TLqkf 또 보여줘야 돼!\" : 식케이"),
             targets.map { it.commentText }
         )
     }
 
     @Test
-    fun extractTargets_extractsVisibleTitleFromLargeVideoCardDescription() {
+    fun extractTargets_skipsLargeVideoCardDescriptionWithoutExactTextBounds() {
         val targets = YoutubeAnalysisTargetExtractor.extractTargets(
             listOf(
                 contentDescriptionNode(
@@ -68,12 +68,11 @@ class YoutubeAnalysisTargetExtractorTest {
             )
         )
 
-        assertEquals(listOf("🔥\"Tlqkf 또 보여줘야 돼!\" : 식케이 (Sik-K), Lil Moshpit - LOV3"), targets.map { it.commentText })
-        assertEquals(BoundsRect(160, 1266, 975, 1394), targets.single().boundsInScreen)
+        assertTrue(targets.isEmpty())
     }
 
     @Test
-    fun extractTargets_extractsKoreanMobileTitleFromContentDescriptionMetadata() {
+    fun extractTargets_skipsKoreanMobileContentDescriptionMetadataWithoutExactTextBounds() {
         val targets = YoutubeAnalysisTargetExtractor.extractTargets(
             listOf(
                 contentDescriptionNode(
@@ -86,12 +85,11 @@ class YoutubeAnalysisTargetExtractorTest {
             )
         )
 
-        assertEquals(listOf("개새끼 - 나무위키:대문"), targets.map { it.commentText })
-        assertEquals(BoundsRect(160, 400, 975, 496), targets.single().boundsInScreen)
+        assertTrue(targets.isEmpty())
     }
 
     @Test
-    fun extractTargets_removesChannelNameBeforeEnglishViewMetadata() {
+    fun extractTargets_skipsEnglishViewMetadataWithoutExactTextBounds() {
         val targets = YoutubeAnalysisTargetExtractor.extractTargets(
             listOf(
                 contentDescriptionNode(
@@ -104,11 +102,11 @@ class YoutubeAnalysisTargetExtractorTest {
             )
         )
 
-        assertEquals(listOf("ssibal 뜻"), targets.map { it.commentText })
+        assertTrue(targets.isEmpty())
     }
 
     @Test
-    fun extractTargets_extractsShortsGridTitleWithoutMaskingWholeCard() {
+    fun extractTargets_skipsShortsGridContentDescriptionWhenExactTextBoundsAreUnavailable() {
         val targets = YoutubeAnalysisTargetExtractor.extractTargets(
             listOf(
                 contentDescriptionNode(
@@ -121,8 +119,7 @@ class YoutubeAnalysisTargetExtractorTest {
             )
         )
 
-        assertEquals(listOf("tlqkf비용 효과 있을까?"), targets.map { it.commentText })
-        assertEquals(BoundsRect(32, 1069, 529, 1145), targets.single().boundsInScreen)
+        assertTrue(targets.isEmpty())
     }
 
     @Test
@@ -130,6 +127,13 @@ class YoutubeAnalysisTargetExtractorTest {
         val targets = YoutubeAnalysisTargetExtractor.extractTargets(
             listOf(
                 node("8.4K", 10, 700, 80, 740),
+                node("Clear", 596, 63, 722, 189),
+                node("Voice search", 722, 63, 848, 189),
+                node("Cast. Disconnected", 848, 63, 975, 189),
+                node("More options", 975, 63, 1080, 189),
+                node("More actions", 455, 337, 518, 400),
+                node("Action menu", 455, 337, 518, 400),
+                node("Subscriptions: New content is available", 648, 2211, 864, 2337),
                 node("Share", 100, 700, 200, 740),
                 node("Subscribe to 세모플 semo playlist.", 100, 760, 500, 800),
                 node("Save to playlist", 100, 820, 300, 860),

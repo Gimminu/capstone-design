@@ -20,10 +20,10 @@ class YoutubeAccessibilityService : AccessibilityService() {
         private const val TIKTOK_PACKAGE = "com.zhiliaoapp.musically"
         private const val TIKTOK_ALT_PACKAGE = "com.ss.android.ugc.trill"
         private const val MIN_UPLOAD_INTERVAL_MS = 1500L
-        private const val PARSE_DELAY_SCROLL_MS = 120L
-        private const val PARSE_DELAY_CONTENT_MS = 160L
-        private const val PARSE_DELAY_WINDOW_MS = 240L
-        private const val RETRY_AFTER_IN_FLIGHT_MS = 90L
+        private const val PARSE_DELAY_SCROLL_MS = 32L
+        private const val PARSE_DELAY_CONTENT_MS = 80L
+        private const val PARSE_DELAY_WINDOW_MS = 120L
+        private const val RETRY_AFTER_IN_FLIGHT_MS = 16L
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -37,6 +37,9 @@ class YoutubeAccessibilityService : AccessibilityService() {
     @Volatile private var overlayRevision = 0L
     private var parseScheduled = false
     private var scheduledParseAtMs = 0L
+    private var lastAppliedSensitivity: Int? = null
+    private var visualCaptureState: VisualTextCaptureState =
+        VisualTextCaptureSupport.inspect(serviceInfo = null)
 
     private val parseRunnable = Runnable {
         parseScheduled = false
@@ -50,7 +53,13 @@ class YoutubeAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        visualCaptureState = VisualTextCaptureSupport.inspect(serviceInfo)
         Log.d(TAG, "service connected")
+        Log.d(
+            TAG,
+            "visual text capture supported=${visualCaptureState.supported} " +
+                "sdk=${visualCaptureState.sdkInt} reason=${visualCaptureState.reason}"
+        )
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -134,6 +143,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
             Log.d(TAG, "lastObservedPackage is null")
             return
         }
+        syncSensitivityState()
 
         val nodes = when (currentPackage) {
             YOUTUBE_PACKAGE -> extractVisibleTextNodesFromYoutubeWindows()
@@ -156,7 +166,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
 
         Log.d(TAG, "package=$currentPackage parsed analysis target count=${comments.size}")
 
-        if (currentPackage == YOUTUBE_PACKAGE && comments.size <= 3) {
+        if (shouldLogRawNodes() && currentPackage == YOUTUBE_PACKAGE && comments.size <= 3) {
             nodes.take(80).forEachIndexed { index, node ->
                 Log.d(
                     TAG,
@@ -166,7 +176,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
             }
         }
 
-        if (currentPackage == INSTAGRAM_PACKAGE && comments.isEmpty()) {
+        if (shouldLogRawNodes() && currentPackage == INSTAGRAM_PACKAGE && comments.isEmpty()) {
             nodes.take(40).forEachIndexed { index, node ->
                 Log.d(
                     TAG,
@@ -175,7 +185,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
             }
         }
 
-        if ((currentPackage == TIKTOK_PACKAGE || currentPackage == TIKTOK_ALT_PACKAGE) && comments.isEmpty()) {
+        if (shouldLogRawNodes() && (currentPackage == TIKTOK_PACKAGE || currentPackage == TIKTOK_ALT_PACKAGE) && comments.isEmpty()) {
             nodes.take(40).forEachIndexed { index, node ->
                 Log.d(
                     TAG,
@@ -250,6 +260,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
                 val analysis = AndroidAnalysisClient
                     .analyzeSnapshot(applicationContext, snapshot)
                     .copy(packageName = currentPackage)
+                    .withOverlayDiagnostics(currentPackage)
                 analysisForOverlay = analysis
                 handler.post {
                     updateMaskOverlay(currentPackage, analysis, snapshotOverlayRevision)
@@ -309,7 +320,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
             return
         }
 
-        if (currentPackage == YOUTUBE_PACKAGE && analysis?.ok == true) {
+        if (supportsMaskOverlay(currentPackage) && analysis?.ok == true) {
             Log.d(
                 TAG,
                 "render mask overlay package=$currentPackage results=${analysis.response?.results?.size ?: 0}"
@@ -330,10 +341,62 @@ class YoutubeAccessibilityService : AccessibilityService() {
         maskOverlayController.clear()
     }
 
+    private fun syncSensitivityState() {
+        val currentSensitivity = AnalysisSensitivityStore.get(applicationContext)
+        val previousSensitivity = lastAppliedSensitivity
+        if (previousSensitivity == null) {
+            lastAppliedSensitivity = currentSensitivity
+            return
+        }
+        if (previousSensitivity == currentSensitivity) return
+
+        lastAppliedSensitivity = currentSensitivity
+        AndroidAnalysisClient.clearCache()
+        clearMaskOverlay()
+        Log.d(TAG, "analysis sensitivity changed $previousSensitivity->$currentSensitivity; cleared cache and overlay")
+    }
+
     private fun shouldClearOverlayImmediately(eventType: Int): Boolean {
         return eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
             eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED
+    }
+
+    private fun shouldLogRawNodes(): Boolean {
+        return Log.isLoggable(TAG, Log.VERBOSE)
+    }
+
+    private fun supportsMaskOverlay(packageName: String): Boolean {
+        return packageName == YOUTUBE_PACKAGE ||
+            packageName == INSTAGRAM_PACKAGE ||
+            packageName == TIKTOK_PACKAGE ||
+            packageName == TIKTOK_ALT_PACKAGE
+    }
+
+    private fun AndroidAnalysisAttempt.withOverlayDiagnostics(packageName: String): AndroidAnalysisAttempt {
+        if (!supportsMaskOverlay(packageName)) return withVisualCaptureDiagnostics()
+        val response = response ?: return withVisualCaptureDiagnostics()
+        val metrics = resources.displayMetrics
+        val plan = AndroidMaskOverlayPlanner.buildPlan(
+            response = response,
+            screenWidth = metrics.widthPixels,
+            screenHeight = metrics.heightPixels
+        )
+
+        return copy(
+            overlayCandidateCount = plan.candidateCount,
+            overlayRenderedCount = plan.specs.size,
+            overlaySkippedUnstableCount = plan.skippedUnstableCount,
+            visualCaptureSupported = visualCaptureState.supported,
+            visualCaptureReason = visualCaptureState.reason
+        )
+    }
+
+    private fun AndroidAnalysisAttempt.withVisualCaptureDiagnostics(): AndroidAnalysisAttempt {
+        return copy(
+            visualCaptureSupported = visualCaptureState.supported,
+            visualCaptureReason = visualCaptureState.reason
+        )
     }
 
     private fun extractVisibleTextNodesFromCurrentWindow(currentPackage: String): List<ParsedTextNode> {

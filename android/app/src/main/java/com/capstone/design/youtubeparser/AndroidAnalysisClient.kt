@@ -17,11 +17,17 @@ private data class PendingComment(
     val comment: ParsedComment
 )
 
+private data class AndroidAnalysisRequest(
+    val timestamp: Long,
+    val sensitivity: Int,
+    val comments: List<ParsedComment>
+)
+
 object AndroidAnalysisClient {
 
     private const val TAG = "AndroidAnalysisClient"
-    private const val CONNECT_TIMEOUT_MS = 1500
-    private const val READ_TIMEOUT_MS = 4500
+    private const val CONNECT_TIMEOUT_MS = 900
+    private const val READ_TIMEOUT_MS = 2200
     private const val RESPONSE_CACHE_LIMIT = 256
     private const val RESPONSE_CACHE_TTL_MS = 30_000L
 
@@ -36,8 +42,15 @@ object AndroidAnalysisClient {
         }
     }
 
+    fun clearCache() {
+        synchronized(responseCache) {
+            responseCache.clear()
+        }
+    }
+
     fun analyzeSnapshot(context: Context, snapshot: ParseSnapshot): AndroidAnalysisAttempt {
         val url = AnalysisEndpointStore.resolveAnalyzeUrl(context)
+        val sensitivity = AnalysisSensitivityStore.get(context)
         val startedAt = System.currentTimeMillis()
         val commentCount = snapshot.comments.size
 
@@ -61,7 +74,7 @@ object AndroidAnalysisClient {
         val pendingEntries = mutableListOf<PendingComment>()
 
         snapshot.comments.forEachIndexed { index, comment ->
-            val cached = getCachedResult(comment, startedAt)
+            val cached = getCachedResult(comment, startedAt, sensitivity)
             if (cached != null) {
                 cachedResults[index] = cached
             } else {
@@ -87,7 +100,11 @@ object AndroidAnalysisClient {
             )
         }
 
-        val requestSnapshot = snapshot.copy(comments = pendingEntries.map { it.comment })
+        val requestSnapshot = AndroidAnalysisRequest(
+            timestamp = snapshot.timestamp,
+            sensitivity = sensitivity,
+            comments = pendingEntries.map { it.comment }
+        )
 
         var connection: HttpURLConnection? = null
 
@@ -135,7 +152,7 @@ object AndroidAnalysisClient {
                     pendingEntries = pendingEntries,
                     freshResponse = response
                 )
-                cacheFreshResults(response.results)
+                cacheFreshResults(response.results, sensitivity)
                 val offensiveCount = countActionableOffensiveResults(mergedResponse)
                 val actionableSamples = buildActionableSamples(mergedResponse)
                 Log.d(
@@ -201,8 +218,8 @@ object AndroidAnalysisClient {
         )
     }
 
-    private fun getCachedResult(comment: ParsedComment, now: Long): AndroidAnalysisResultItem? {
-        val key = cacheKey(comment.commentText)
+    private fun getCachedResult(comment: ParsedComment, now: Long, sensitivity: Int): AndroidAnalysisResultItem? {
+        val key = cacheKey(comment.commentText, sensitivity)
         if (key.isBlank()) return null
 
         return synchronized(responseCache) {
@@ -215,11 +232,11 @@ object AndroidAnalysisClient {
         }
     }
 
-    private fun cacheFreshResults(results: List<AndroidAnalysisResultItem>) {
+    private fun cacheFreshResults(results: List<AndroidAnalysisResultItem>, sensitivity: Int) {
         val expiresAt = System.currentTimeMillis() + RESPONSE_CACHE_TTL_MS
         synchronized(responseCache) {
             results.forEach { result ->
-                val key = cacheKey(result.original)
+                val key = cacheKey(result.original, sensitivity)
                 if (key.isNotBlank()) {
                     responseCache[key] = CachedAnalysisResult(result, expiresAt)
                 }
@@ -227,8 +244,13 @@ object AndroidAnalysisClient {
         }
     }
 
-    private fun cacheKey(text: String): String {
-        return text.replace(Regex("\\s+"), " ").trim().lowercase()
+    private fun cacheKey(text: String, sensitivity: Int? = null): String {
+        val normalizedText = text.replace(Regex("\\s+"), " ").trim().lowercase()
+        return if (sensitivity == null) {
+            normalizedText
+        } else {
+            "$sensitivity::$normalizedText"
+        }
     }
 
     internal fun parseAndroidAnalysisResponse(
