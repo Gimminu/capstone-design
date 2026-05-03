@@ -32,10 +32,17 @@ class YoutubeAccessibilityService : AccessibilityService() {
     private val maskOverlayController by lazy { MaskOverlayController(this) }
     @Volatile private var analysisInFlight = false
     @Volatile private var pendingParseAfterAnalysis = false
+    @Volatile private var followUpParseRequested = false
     @Volatile private var overlayRevision = 0L
+    private var parseScheduled = false
 
     private val parseRunnable = Runnable {
+        parseScheduled = false
         parseAndUploadCurrentWindow()
+        if (followUpParseRequested && !analysisInFlight) {
+            followUpParseRequested = false
+            scheduleParse(RETRY_AFTER_IN_FLIGHT_MS)
+        }
     }
 
     override fun onServiceConnected() {
@@ -65,8 +72,6 @@ class YoutubeAccessibilityService : AccessibilityService() {
                     clearMaskOverlay()
                 }
 
-                handler.removeCallbacks(parseRunnable)
-
                 val delayMs = when (event.eventType) {
                     AccessibilityEvent.TYPE_VIEW_SCROLLED -> PARSE_DELAY_SCROLL_MS
                     AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
@@ -74,21 +79,37 @@ class YoutubeAccessibilityService : AccessibilityService() {
                     else -> PARSE_DELAY_CONTENT_MS
                 }
 
-                handler.postDelayed(parseRunnable, delayMs)
+                scheduleParse(delayMs)
             }
         }
     }
 
     override fun onInterrupt() {
-        handler.removeCallbacks(parseRunnable)
+        cancelScheduledParse()
         maskOverlayController.clear()
         Log.d(TAG, "service interrupted")
     }
 
     override fun onDestroy() {
-        handler.removeCallbacks(parseRunnable)
+        cancelScheduledParse()
         maskOverlayController.clear()
         super.onDestroy()
+    }
+
+    private fun scheduleParse(delayMs: Long) {
+        if (parseScheduled) {
+            followUpParseRequested = true
+            return
+        }
+
+        parseScheduled = true
+        handler.postDelayed(parseRunnable, delayMs)
+    }
+
+    private fun cancelScheduledParse() {
+        handler.removeCallbacks(parseRunnable)
+        parseScheduled = false
+        followUpParseRequested = false
     }
 
     private fun parseAndUploadCurrentWindow() {
@@ -199,9 +220,12 @@ class YoutubeAccessibilityService : AccessibilityService() {
                 if (releasedAnalysisGate) return
                 releasedAnalysisGate = true
                 analysisInFlight = false
-                if (pendingParseAfterAnalysis) {
-                    pendingParseAfterAnalysis = false
-                    handler.postDelayed(parseRunnable, RETRY_AFTER_IN_FLIGHT_MS)
+                if (pendingParseAfterAnalysis || followUpParseRequested) {
+                    handler.post {
+                        pendingParseAfterAnalysis = false
+                        followUpParseRequested = false
+                        scheduleParse(RETRY_AFTER_IN_FLIGHT_MS)
+                    }
                 }
             }
 
