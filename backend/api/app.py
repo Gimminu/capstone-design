@@ -156,7 +156,7 @@ def _format_result(
             }
             for s in analysis["evidence_spans"]
         ],
-        "timing_ms": round(timing_ms, 3) if timing_ms is not None else None,
+        "timing_ms": round(timing_ms, 3) if timing_ms is not None else timing.get("pipeline_ms"),
         "model_timing_ms": round(model_timing_ms, 3) if model_timing_ms is not None else timing.get("model_ms"),
         "llm_timing_ms": round(llm_timing_ms, 3) if llm_timing_ms is not None else None,
     }

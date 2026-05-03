@@ -93,6 +93,40 @@ class PipelineRegressionTest(unittest.TestCase):
                 self.assertFalse(result["is_offensive"])
                 self.assertEqual(result["evidence_spans"], [])
 
+    def test_android_batch_preserves_bounds_and_order(self):
+        raw = {
+            "timestamp": 1710000000000,
+            "comments": [
+                {
+                    "commentText": "좋은 영상이네요",
+                    "boundsInScreen": {"left": 0, "top": 10, "right": 300, "bottom": 60},
+                },
+                {
+                    "commentText": "시발 뭐하는 거야",
+                    "boundsInScreen": {"left": 0, "top": 70, "right": 300, "bottom": 120},
+                },
+            ],
+        }
+
+        result = self.pipeline.analyze_android_batch(raw)
+
+        self.assertEqual(1710000000000, result["timestamp"])
+        self.assertEqual(0, result["filtered_count"])
+        self.assertEqual(
+            ["좋은 영상이네요", "시발 뭐하는 거야"],
+            [item["original"] for item in result["results"]],
+        )
+        self.assertEqual(
+            [
+                {"left": 0, "top": 10, "right": 300, "bottom": 60},
+                {"left": 0, "top": 70, "right": 300, "bottom": 120},
+            ],
+            [item["boundsInScreen"] for item in result["results"]],
+        )
+        self.assertFalse(result["results"][0]["is_offensive"])
+        self.assertTrue(result["results"][1]["is_offensive"])
+        self.assertTrue(result["results"][1]["evidence_spans"])
+
 
 if __name__ == "__main__":
     unittest.main()

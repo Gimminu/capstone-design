@@ -11,6 +11,8 @@ import java.util.UUID
 object ServerUploader {
 
     private const val TAG = "ServerUploader"
+    private const val CONNECT_TIMEOUT_MS = 1500
+    private const val READ_TIMEOUT_MS = 2500
 
     fun uploadJsonFile(context: Context, file: File): Boolean {
         return try {
@@ -20,6 +22,8 @@ object ServerUploader {
 
             val connection = URL(uploadUrl).openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
+            connection.connectTimeout = CONNECT_TIMEOUT_MS
+            connection.readTimeout = READ_TIMEOUT_MS
             connection.doOutput = true
             connection.doInput = true
             connection.useCaches = false
@@ -55,7 +59,7 @@ object ServerUploader {
             Log.d(TAG, "uploadUrl=$uploadUrl responseCode=$responseCode response=$responseText")
             responseCode in 200..299
         } catch (e: Exception) {
-            Log.e(TAG, "upload failed", e)
+            Log.w(TAG, "upload skipped: ${e.javaClass.simpleName}: ${e.message.orEmpty()}")
             false
         }
     }

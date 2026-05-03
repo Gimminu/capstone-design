@@ -39,6 +39,6 @@ class AnalysisEndpointStoreTest {
     fun resolveAnalyzeUrl_usesDefaultWhenBlank() {
         val resolved = AnalysisEndpointStore.resolveAnalyzeUrl("   ")
 
-        assertEquals("http://100.95.209.72:8000/analyze_android", resolved)
+        assertEquals("http://10.0.2.2:8000/analyze_android", resolved)
     }
 }

@@ -12,7 +12,7 @@
     <string name="save_analysis_endpoint">분석 API 저장</string>
     <string name="analysis_diagnostics_label">최근 분석 진단</string>
     <string name="analysis_diagnostics_empty">아직 분석 기록이 없습니다. 접근성 서비스를 켠 뒤 대상 앱 댓글 화면을 열어주세요.</string>
-    <string name="analysis_diagnostics_value">시간: %1$s\n상태: %2$s\n댓글 수: %3$d\n마스킹 가능 댓글 수: %4$d\n백엔드 filtered_count: %5$d\n지연: %6$dms\n주소: %7$s\n오류: %8$s</string>
+    <string name="analysis_diagnostics_value">시간: %1$s\n상태: %2$s\n대상 앱: %3$s\n댓글 수: %4$d\n마스킹 가능 댓글 수: %5$d\n백엔드 filtered_count: %6$d\n지연: %7$dms\n주소: %8$s\n근거 샘플:\n%9$s\n오류: %10$s</string>
     <string name="refresh_analysis_diagnostics">진단 새로고침</string>
     <string name="open_accessibility_settings">접근성 설정 열기</string>
     <string name="saved_server_endpoint">저장된 업로드 주소: %1$s</string>

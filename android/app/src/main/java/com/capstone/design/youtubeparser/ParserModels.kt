@@ -74,22 +74,26 @@ data class AndroidAnalysisResponse(
 
 data class AndroidAnalysisAttempt(
     val ok: Boolean,
+    val packageName: String? = null,
     val url: String,
     val latencyMs: Long,
     val commentCount: Int,
     val offensiveCount: Int,
     val filteredCount: Int,
     val response: AndroidAnalysisResponse? = null,
+    val actionableSamples: List<String> = emptyList(),
     val error: String? = null
 )
 
 data class AndroidAnalysisDiagnostics(
     val analyzedAt: Long,
     val ok: Boolean,
+    val packageName: String?,
     val url: String,
     val latencyMs: Long,
     val commentCount: Int,
     val offensiveCount: Int,
     val filteredCount: Int,
+    val actionableSamples: List<String>,
     val error: String?
 )

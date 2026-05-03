@@ -397,7 +397,6 @@ class ProfanityPipeline:
 
     def analyze_batch(self, texts: list[str], sensitivity: int | None = None) -> list[dict]:
         """배치 텍스트 분석."""
-        total_started = time.perf_counter()
         threshold = _threshold_from_sensitivity(sensitivity, self.threshold)
 
         normalized_items: list[str] = []
@@ -416,7 +415,7 @@ class ProfanityPipeline:
             if _is_latin_safe_text(text) or _is_latin_safe_text(normalized) or _is_safe_context(text, normalized):
                 result = _empty_result(text)
                 result["_timing"]["normalize_ms"] = round(normalize_ms, 3)
-                result["_timing"]["pipeline_ms"] = round((time.perf_counter() - total_started) * 1000, 3)
+                result["_timing"]["pipeline_ms"] = round(normalize_ms, 3)
                 results[index] = result
                 continue
 
@@ -430,6 +429,7 @@ class ProfanityPipeline:
             per_item_classifier_ms = total_classifier_ms / max(1, len(classifier_texts))
 
             for batch_pos, index in enumerate(classifier_indexes):
+                post_classifier_started = time.perf_counter()
                 text = texts[index]
                 normalized = normalized_items[index]
                 cls_result = cls_results[batch_pos]
@@ -467,7 +467,9 @@ class ProfanityPipeline:
 
                     evidence_spans = _merge_spans(evidence_spans, text)
 
+                post_classifier_ms = (time.perf_counter() - post_classifier_started) * 1000
                 model_ms = per_item_classifier_ms + span_ms
+                pipeline_ms = normalize_times[index] + per_item_classifier_ms + post_classifier_ms
                 results[index] = {
                     "text": text,
                     "is_offensive": is_offensive,
@@ -481,7 +483,7 @@ class ProfanityPipeline:
                         "classifier_ms": round(per_item_classifier_ms, 3),
                         "span_ms": round(span_ms, 3),
                         "model_ms": round(model_ms, 3),
-                        "pipeline_ms": round((time.perf_counter() - total_started) * 1000, 3),
+                        "pipeline_ms": round(pipeline_ms, 3),
                     },
                 }
 
@@ -496,11 +498,11 @@ class ProfanityPipeline:
         valid_comments = filter_android_json(raw)
 
         results = []
-        for item in valid_comments:
+        analyses = self.analyze_batch([item["commentText"] for item in valid_comments])
+
+        for item, analysis in zip(valid_comments, analyses, strict=True):
             text = item["commentText"]
             bounds = item["boundsInScreen"]
-
-            analysis = self.analyze(text)
 
             results.append({
                 "original": text,

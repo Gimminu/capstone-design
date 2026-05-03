@@ -18,13 +18,20 @@ class YoutubeAccessibilityService : AccessibilityService() {
         private const val INSTAGRAM_PACKAGE = "com.instagram.android"
         private const val TIKTOK_PACKAGE = "com.zhiliaoapp.musically"
         private const val TIKTOK_ALT_PACKAGE = "com.ss.android.ugc.trill"
-        private const val MIN_UPLOAD_INTERVAL_MS = 1200L
+        private const val MIN_UPLOAD_INTERVAL_MS = 1500L
+        private const val PARSE_DELAY_SCROLL_MS = 120L
+        private const val PARSE_DELAY_CONTENT_MS = 160L
+        private const val PARSE_DELAY_WINDOW_MS = 240L
+        private const val RETRY_AFTER_IN_FLIGHT_MS = 90L
     }
 
     private val handler = Handler(Looper.getMainLooper())
     private var lastSnapshotSignature: String? = null
     private var lastUploadAt: Long = 0L
     private var lastObservedPackage: String? = null
+    private val maskOverlayController by lazy { MaskOverlayController(this) }
+    @Volatile private var analysisInFlight = false
+    @Volatile private var pendingParseAfterAnalysis = false
 
     private val parseRunnable = Runnable {
         parseAndUploadCurrentWindow()
@@ -56,10 +63,10 @@ class YoutubeAccessibilityService : AccessibilityService() {
                 handler.removeCallbacks(parseRunnable)
 
                 val delayMs = when (event.eventType) {
-                    AccessibilityEvent.TYPE_VIEW_SCROLLED -> 450L
+                    AccessibilityEvent.TYPE_VIEW_SCROLLED -> PARSE_DELAY_SCROLL_MS
                     AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
-                    AccessibilityEvent.TYPE_WINDOWS_CHANGED -> 700L
-                    else -> 550L
+                    AccessibilityEvent.TYPE_WINDOWS_CHANGED -> PARSE_DELAY_WINDOW_MS
+                    else -> PARSE_DELAY_CONTENT_MS
                 }
 
                 handler.postDelayed(parseRunnable, delayMs)
@@ -69,11 +76,13 @@ class YoutubeAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         handler.removeCallbacks(parseRunnable)
+        maskOverlayController.clear()
         Log.d(TAG, "service interrupted")
     }
 
     override fun onDestroy() {
         handler.removeCallbacks(parseRunnable)
+        maskOverlayController.clear()
         super.onDestroy()
     }
 
@@ -83,25 +92,36 @@ class YoutubeAccessibilityService : AccessibilityService() {
             return
         }
 
-        val nodes = if (currentPackage == INSTAGRAM_PACKAGE) {
-            extractVisibleTextNodesFromInstagramWindows()
-        } else {
-            extractVisibleTextNodesFromCurrentWindow(currentPackage)
+        val nodes = when (currentPackage) {
+            YOUTUBE_PACKAGE -> extractVisibleTextNodesFromYoutubeWindows()
+            INSTAGRAM_PACKAGE -> extractVisibleTextNodesFromInstagramWindows()
+            else -> extractVisibleTextNodesFromCurrentWindow(currentPackage)
         }
 
         if (nodes.isEmpty()) {
             Log.d(TAG, "no visible nodes found")
+            clearMaskOverlay()
             return
         }
 
         val comments = when (currentPackage) {
-            YOUTUBE_PACKAGE -> YoutubeCommentExtractor.extractComments(nodes)
+            YOUTUBE_PACKAGE -> YoutubeAnalysisTargetExtractor.extractTargets(nodes)
             INSTAGRAM_PACKAGE -> InstagramCommentExtractor.extractComments(nodes)
             TIKTOK_PACKAGE, TIKTOK_ALT_PACKAGE -> TiktokCommentExtractor.extractComments(nodes)
             else -> emptyList()
         }
 
-        Log.d(TAG, "package=$currentPackage parsed comment count=${comments.size}")
+        Log.d(TAG, "package=$currentPackage parsed analysis target count=${comments.size}")
+
+        if (currentPackage == YOUTUBE_PACKAGE && comments.size <= 3) {
+            nodes.take(80).forEachIndexed { index, node ->
+                Log.d(
+                    TAG,
+                    "YT_RAW[$index] text=${node.displayText} | cls=${node.className} | id=${node.viewIdResourceName} " +
+                        "| bounds=${node.left},${node.top},${node.right},${node.bottom}"
+                )
+            }
+        }
 
         if (currentPackage == INSTAGRAM_PACKAGE && comments.isEmpty()) {
             nodes.take(40).forEachIndexed { index, node ->
@@ -121,7 +141,10 @@ class YoutubeAccessibilityService : AccessibilityService() {
             }
         }
 
-        if (comments.isEmpty()) return
+        if (comments.isEmpty()) {
+            clearMaskOverlay()
+            return
+        }
 
         val signature = buildString {
             append(currentPackage)
@@ -135,12 +158,13 @@ class YoutubeAccessibilityService : AccessibilityService() {
         val now = System.currentTimeMillis()
 
         if (signature == lastSnapshotSignature) {
-            Log.d(TAG, "skip duplicate snapshot upload")
+            Log.d(TAG, "skip duplicate snapshot")
             return
         }
 
-        if (now - lastUploadAt < MIN_UPLOAD_INTERVAL_MS) {
-            Log.d(TAG, "skip upload: throttled")
+        if (analysisInFlight) {
+            pendingParseAfterAnalysis = true
+            Log.d(TAG, "defer snapshot: analysis already in flight")
             return
         }
 
@@ -148,39 +172,134 @@ class YoutubeAccessibilityService : AccessibilityService() {
             timestamp = now,
             comments = comments
         )
-        val savedFile = JsonFileStore.saveSnapshot(applicationContext, snapshot, currentPackage)
+        val shouldUpload = now - lastUploadAt >= MIN_UPLOAD_INTERVAL_MS
+        val savedFile = if (shouldUpload) {
+            JsonFileStore.saveSnapshot(applicationContext, snapshot, currentPackage)
+        } else {
+            null
+        }
 
         lastSnapshotSignature = signature
-        lastUploadAt = now
+        if (shouldUpload) {
+            lastUploadAt = now
+        }
+        analysisInFlight = true
 
         Thread {
-            val analysis = AndroidAnalysisClient.analyzeSnapshot(applicationContext, snapshot)
-            AnalysisDiagnosticsStore.saveAttempt(applicationContext, analysis)
+            var analysisForOverlay: AndroidAnalysisAttempt? = null
+            var releasedAnalysisGate = false
 
-            analysis.response?.let { response ->
-                JsonFileStore.saveAnalysisResponse(applicationContext, response, currentPackage)
+            fun releaseAnalysisGate() {
+                if (releasedAnalysisGate) return
+                releasedAnalysisGate = true
+                analysisInFlight = false
+                if (pendingParseAfterAnalysis) {
+                    pendingParseAfterAnalysis = false
+                    handler.postDelayed(parseRunnable, RETRY_AFTER_IN_FLIGHT_MS)
+                }
             }
 
-            val uploadOk = ServerUploader.uploadJsonFile(applicationContext, savedFile)
+            try {
+                val analysis = AndroidAnalysisClient
+                    .analyzeSnapshot(applicationContext, snapshot)
+                    .copy(packageName = currentPackage)
+                analysisForOverlay = analysis
+                handler.post {
+                    updateMaskOverlay(currentPackage, analysis)
+                }
+                AnalysisDiagnosticsStore.saveAttempt(applicationContext, analysis)
 
+                analysis.response?.let { response ->
+                    JsonFileStore.saveAnalysisResponse(applicationContext, response, currentPackage)
+                }
+
+                // Masking must not be blocked by the optional upload channel.
+                releaseAnalysisGate()
+
+                val uploadOk = savedFile?.let {
+                    ServerUploader.uploadJsonFile(applicationContext, it)
+                } ?: false
+
+                Log.d(
+                    TAG,
+                    "snapshot processed package=$currentPackage uploadOk=$uploadOk " +
+                        "uploadSkipped=${savedFile == null} analysisOk=${analysis.ok} " +
+                        "comments=${analysis.commentCount} offensive=${analysis.offensiveCount} " +
+                        "filtered=${analysis.filteredCount} analysisLatencyMs=${analysis.latencyMs} " +
+                        "analysisError=${analysis.error.orEmpty()}"
+                )
+            } finally {
+                if (analysisForOverlay == null) {
+                    handler.post {
+                        updateMaskOverlay(currentPackage, null)
+                    }
+                }
+                releaseAnalysisGate()
+            }
+        }.start()
+    }
+
+    private fun updateMaskOverlay(currentPackage: String, analysis: AndroidAnalysisAttempt?) {
+        if (currentPackage != lastObservedPackage) {
             Log.d(
                 TAG,
-                "snapshot processed package=$currentPackage uploadOk=$uploadOk " +
-                    "analysisOk=${analysis.ok} comments=${analysis.commentCount} " +
-                    "offensive=${analysis.offensiveCount} filtered=${analysis.filteredCount} " +
-                    "analysisLatencyMs=${analysis.latencyMs} analysisError=${analysis.error.orEmpty()}"
+                "skip mask overlay: stale package current=$currentPackage observed=$lastObservedPackage"
             )
-        }.start()
+            maskOverlayController.clear()
+            return
+        }
+
+        if (currentPackage == YOUTUBE_PACKAGE && analysis?.ok == true) {
+            Log.d(
+                TAG,
+                "render mask overlay package=$currentPackage results=${analysis.response?.results?.size ?: 0}"
+            )
+            maskOverlayController.render(analysis.response)
+        } else {
+            Log.d(
+                TAG,
+                "clear mask overlay package=$currentPackage analysisOk=${analysis?.ok}"
+            )
+            maskOverlayController.clear()
+        }
+    }
+
+    private fun clearMaskOverlay() {
+        maskOverlayController.clear()
     }
 
     private fun extractVisibleTextNodesFromCurrentWindow(currentPackage: String): List<ParsedTextNode> {
         val root = rootInActiveWindow ?: return emptyList()
+
         val tiktokMode = currentPackage == TIKTOK_PACKAGE || currentPackage == TIKTOK_ALT_PACKAGE
         return collectFilteredNodesFromRoot(
             root = root,
             instagramMode = false,
             tiktokMode = tiktokMode
         )
+    }
+
+    private fun extractVisibleTextNodesFromYoutubeWindows(): List<ParsedTextNode> {
+        val out = mutableListOf<ParsedTextNode>()
+        val seenRootKeys = mutableSetOf<String>()
+
+        fun addRoot(root: AccessibilityNodeInfo?) {
+            if (root == null) return
+            if (root.packageName?.toString() != YOUTUBE_PACKAGE) return
+
+            val rect = Rect().also { root.getBoundsInScreen(it) }
+            val rootKey = "${rect.left},${rect.top},${rect.right},${rect.bottom},${root.className}"
+            if (!seenRootKeys.add(rootKey)) return
+
+            out += collectRawNodesFromRoot(root)
+        }
+
+        addRoot(rootInActiveWindow)
+        windows?.forEach { window ->
+            addRoot(window.root)
+        }
+
+        return deduplicateNodes(out)
     }
 
     private fun extractVisibleTextNodesFromInstagramWindows(): List<ParsedTextNode> {
@@ -320,6 +439,8 @@ class YoutubeAccessibilityService : AccessibilityService() {
         val screenHeight = if (rootRect.height() > 0) rootRect.height() else rect.bottom
         val upperCutoff = if (instagramMode) {
             (screenHeight * 0.08f).toInt()
+        } else if (!tiktokMode) {
+            (screenHeight * 0.12f).toInt()
         } else {
             (screenHeight * 0.28f).toInt()
         }

@@ -101,11 +101,13 @@ class MainActivity : AppCompatActivity() {
             R.string.analysis_diagnostics_value,
             analyzedAt,
             status,
+            diagnostics.packageName ?: "-",
             diagnostics.commentCount,
             diagnostics.offensiveCount,
             diagnostics.filteredCount,
             diagnostics.latencyMs,
             diagnostics.url,
+            diagnostics.actionableSamples.takeIf { it.isNotEmpty() }?.joinToString("\n") ?: "-",
             diagnostics.error ?: "-"
         )
     }

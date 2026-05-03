@@ -9,8 +9,8 @@ import java.net.URL
 object AndroidAnalysisClient {
 
     private const val TAG = "AndroidAnalysisClient"
-    private const val CONNECT_TIMEOUT_MS = 2500
-    private const val READ_TIMEOUT_MS = 7000
+    private const val CONNECT_TIMEOUT_MS = 1500
+    private const val READ_TIMEOUT_MS = 4500
 
     private val gson = GsonBuilder().create()
 
@@ -76,6 +76,7 @@ object AndroidAnalysisClient {
             } else {
                 val response = parseAndroidAnalysisResponse(responseText, commentCount)
                 val offensiveCount = countActionableOffensiveResults(response)
+                val actionableSamples = buildActionableSamples(response)
                 Log.d(
                     TAG,
                     "analysis ok url=$url comments=$commentCount actionableOffensive=$offensiveCount latencyMs=$latencyMs"
@@ -87,7 +88,8 @@ object AndroidAnalysisClient {
                     commentCount = commentCount,
                     offensiveCount = offensiveCount,
                     filteredCount = response.filteredCount,
-                    response = response
+                    response = response,
+                    actionableSamples = actionableSamples
                 )
             }
         } catch (error: Exception) {
@@ -127,6 +129,26 @@ object AndroidAnalysisClient {
         return response.results.count { item ->
             item.isOffensive && item.evidenceSpans.isNotEmpty()
         }
+    }
+
+    private fun buildActionableSamples(response: AndroidAnalysisResponse): List<String> {
+        return response.results
+            .asSequence()
+            .filter { it.isOffensive && it.evidenceSpans.isNotEmpty() }
+            .map { item ->
+                val labels = listOfNotNull(
+                    "욕설".takeIf { item.isProfane },
+                    "공격".takeIf { item.isToxic },
+                    "혐오".takeIf { item.isHate }
+                ).joinToString("/")
+                val evidence = item.evidenceSpans
+                    .take(3)
+                    .joinToString(", ") { it.text }
+                val text = item.original.replace(Regex("\\s+"), " ").take(80)
+                "$labels: $evidence :: $text"
+            }
+            .take(3)
+            .toList()
     }
 
     @Suppress("SENSELESS_COMPARISON")

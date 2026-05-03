@@ -34,6 +34,18 @@
         "$ref": "../common/evidence-span.schema.json"
       },
       "description": "욕설 위치 목록 (마스킹 근거)"
+    },
+    "timing_ms": {
+      "type": ["number", "null"],
+      "description": "백엔드 전체 처리 시간(ms). 없는 환경에서는 null"
+    },
+    "model_timing_ms": {
+      "type": ["number", "null"],
+      "description": "모델 처리 시간(ms). 없는 환경에서는 null"
+    },
+    "llm_timing_ms": {
+      "type": ["number", "null"],
+      "description": "LLM 설명 경로 처리 시간(ms). 사용하지 않으면 null"
     }
   },
   "required": [

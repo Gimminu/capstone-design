@@ -98,6 +98,67 @@ def span_matches(result: dict[str, Any], expected_spans: list[str]) -> bool:
     return True
 
 
+def as_float(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number >= 0 else None
+
+
+def percentile(values: list[float], percent: float) -> float | None:
+    if not values:
+        return None
+    sorted_values = sorted(values)
+    index = min(len(sorted_values) - 1, max(0, round((len(sorted_values) - 1) * percent)))
+    return sorted_values[index]
+
+
+def summarize_metric(values: list[float]) -> dict[str, float | None]:
+    if not values:
+        return {"min": None, "avg": None, "p95": None, "max": None}
+    return {
+        "min": round(min(values), 3),
+        "avg": round(sum(values) / len(values), 3),
+        "p95": round(percentile(values, 0.95) or 0, 3),
+        "max": round(max(values), 3),
+    }
+
+
+def summarize_latency(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    timing_values = [
+        value
+        for value in (as_float(row.get("timing_ms")) for row in rows)
+        if value is not None
+    ]
+    model_values = [
+        value
+        for value in (as_float(row.get("model_timing_ms")) for row in rows)
+        if value is not None
+    ]
+    slowest_rows = sorted(
+        (row for row in rows if as_float(row.get("timing_ms")) is not None),
+        key=lambda row: as_float(row.get("timing_ms")) or 0,
+        reverse=True,
+    )[:5]
+    return {
+        "timing_ms": summarize_metric(timing_values),
+        "model_timing_ms": summarize_metric(model_values),
+        "slowest": [
+            {
+                "id": row.get("id"),
+                "group": row.get("group"),
+                "pass": row.get("pass"),
+                "timing_ms": row.get("timing_ms"),
+                "model_timing_ms": row.get("model_timing_ms"),
+                "actual": row.get("actual"),
+                "spans": row.get("spans"),
+            }
+            for row in slowest_rows
+        ],
+    }
+
+
 def evaluate(
     cases: list[dict[str, Any]],
     results: list[dict[str, Any]],
@@ -147,12 +208,14 @@ def evaluate(
                 "expected_spans": expected_spans,
                 "pass": passed,
                 "timing_ms": result.get("timing_ms"),
+                "model_timing_ms": result.get("model_timing_ms"),
+                "llm_timing_ms": result.get("llm_timing_ms"),
                 "scores": result.get("scores"),
                 "notes": case.get("notes", ""),
             }
         )
 
-    return {"totals": totals, "groups": groups, "rows": rows}
+    return {"totals": totals, "groups": groups, "latency": summarize_latency(rows), "rows": rows}
 
 
 def print_human_report(report: dict[str, Any], backend_ms: float, sensitivity: int) -> None:
@@ -172,6 +235,32 @@ def print_human_report(report: dict[str, Any], backend_ms: float, sensitivity: i
     for group, stats in sorted(report["groups"].items()):
         print(f"- {group}: {stats['pass']}/{stats['count']} pass")
     print()
+
+    latency = report.get("latency") or {}
+    timing = latency.get("timing_ms") or {}
+    model_timing = latency.get("model_timing_ms") or {}
+    if timing.get("avg") is not None or model_timing.get("avg") is not None:
+        print("Latency summary")
+        if timing.get("avg") is not None:
+            print(
+                "- per-result pipeline: "
+                f"avg {timing['avg']}ms, p95 {timing['p95']}ms, max {timing['max']}ms"
+            )
+        if model_timing.get("avg") is not None:
+            print(
+                "- per-result model: "
+                f"avg {model_timing['avg']}ms, p95 {model_timing['p95']}ms, max {model_timing['max']}ms"
+            )
+        slowest = list(latency.get("slowest") or [])
+        if slowest:
+            print("- slowest cases:")
+            for row in slowest:
+                print(
+                    f"  - {row['id']} [{row['group']}]: "
+                    f"pipeline={row['timing_ms']}ms model={row['model_timing_ms']}ms "
+                    f"actual={row['actual']} spans={row['spans']}"
+                )
+        print()
 
     failed = [row for row in report["rows"] if not row["pass"]]
     if not failed:
