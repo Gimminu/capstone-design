@@ -31,7 +31,7 @@ class MaskOverlayPlannerTest {
         val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 320, screenHeight = 640)
 
         assertEquals(1, specs.size)
-        assertEquals("•••", specs.single().label)
+        assertEquals("***", specs.single().label)
         assertTrue(specs.single().width < 150)
         assertTrue(specs.single().height <= 48)
     }
@@ -95,7 +95,7 @@ class MaskOverlayPlannerTest {
         val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 1080, screenHeight = 2400)
 
         assertEquals(1, specs.size)
-        assertEquals("•••", specs.single().label)
+        assertEquals("***", specs.single().label)
         assertTrue(specs.single().width < 449)
         assertTrue(specs.single().height <= 48)
     }
@@ -127,6 +127,28 @@ class MaskOverlayPlannerTest {
     }
 
     @Test
+    fun buildSpecs_suppressesNearDuplicateOverlappingMasks() {
+        val response = responseOf(
+            resultOf(
+                offensive = true,
+                bounds = BoundsRect(40, 100, 240, 150),
+                spans = listOf(EvidenceSpan("tlqkf", 0, 5, 0.99)),
+                original = "tlqkf"
+            ),
+            resultOf(
+                offensive = true,
+                bounds = BoundsRect(44, 104, 244, 154),
+                spans = listOf(EvidenceSpan("tlqkf", 0, 5, 0.99)),
+                original = "tlqkf"
+            )
+        )
+
+        val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 320, screenHeight = 640)
+
+        assertEquals(1, specs.size)
+    }
+
+    @Test
     fun buildSpecs_usesReadableLabelForLargeTitleRows() {
         val response = responseOf(
             resultOf(
@@ -140,7 +162,7 @@ class MaskOverlayPlannerTest {
         val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 1080, screenHeight = 2400)
 
         assertEquals(1, specs.size)
-        assertEquals("•••", specs.single().label)
+        assertEquals("***", specs.single().label)
         assertNotEquals(815, specs.single().width)
         assertTrue(specs.single().height <= 48)
     }

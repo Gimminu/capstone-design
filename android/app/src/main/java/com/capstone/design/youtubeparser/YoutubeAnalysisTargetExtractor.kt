@@ -35,6 +35,10 @@ object YoutubeAnalysisTargetExtractor {
         if (width < 24 || height < 16) return null
         if (contentDescriptionOnly && isCompositeYoutubeCardDescription(lower, width, height)) {
             val isShortsGridCard = isShortsGridCardDescription(lower, width, height)
+            if (isShortsGridCard) {
+                // Shorts grid cards expose title text only as card metadata, not as text bounds.
+                return null
+            }
             val title = extractCompositeYoutubeTitle(text) ?: return null
             if (!isPlausibleContentTitle(title)) return null
             return ParsedComment(
@@ -76,6 +80,14 @@ object YoutubeAnalysisTargetExtractor {
 
     private fun isYoutubeUiLabel(text: String, lower: String): Boolean {
         return lower == "filters" ||
+            lower == "clear" ||
+            lower == "voice search" ||
+            lower == "search with your voice" ||
+            lower == "cast. disconnected" ||
+            lower == "cast" ||
+            lower == "more options" ||
+            lower == "more actions" ||
+            lower == "action menu" ||
             lower == "all" ||
             lower == "shorts" ||
             lower == "unwatched" ||
@@ -88,9 +100,14 @@ object YoutubeAnalysisTargetExtractor {
             lower == "premium controls" ||
             lower == "expand mini player" ||
             lower == "new content available" ||
+            lower == "subscriptions: new content is available" ||
+            lower == "open navigation menu" ||
+            lower == "navigate up" ||
             lower.startsWith("go to channel ") ||
             lower.contains("official artist channel") ||
             lower.endsWith(" subscribers") ||
+            lower.startsWith("voice search") ||
+            lower.startsWith("cast.") ||
             text == "전체" ||
             text == "동영상" ||
             text == "최근 업로드" ||

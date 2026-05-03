@@ -42,13 +42,14 @@ object AndroidMaskOverlayPlanner {
             return emptyList()
         }
 
-        return response.results
+        val rawSpecs = response.results
             .asSequence()
             .filter { it.isOffensive && it.evidenceSpans.isNotEmpty() }
             .flatMap { toSpecs(it, screenWidth, screenHeight).asSequence() }
-            .distinctBy { "${it.left}|${it.top}|${it.width}|${it.height}" }
-            .take(MAX_MASK_COUNT)
             .toList()
+
+        return suppressOverlappingSpecs(rawSpecs)
+            .take(MAX_MASK_COUNT)
     }
 
     fun signature(specs: List<MaskOverlaySpec>): String {
@@ -120,7 +121,7 @@ object AndroidMaskOverlayPlanner {
             fullSpec.width,
             maxOf(
                 MIN_SPAN_MASK_WIDTH_PX,
-                span.text.ifBlank { "•••" }.length * 18
+                span.text.ifBlank { MASK_LABEL }.length * 18
             )
         )
         val center = (rawLeft + rawRight) / 2
@@ -158,7 +159,37 @@ object AndroidMaskOverlayPlanner {
         )
     }
 
-    private const val MASK_LABEL = "•••"
+    private fun suppressOverlappingSpecs(specs: List<MaskOverlaySpec>): List<MaskOverlaySpec> {
+        val kept = mutableListOf<MaskOverlaySpec>()
+        specs
+            .distinctBy { "${it.left}|${it.top}|${it.width}|${it.height}" }
+            .sortedWith(compareBy<MaskOverlaySpec> { it.top }.thenBy { it.left }.thenBy { it.width * it.height })
+            .forEach { spec ->
+                val overlapsExisting = kept.any { existing ->
+                    overlapRatio(spec, existing) >= 0.65f
+                }
+                if (!overlapsExisting) {
+                    kept += spec
+                }
+            }
+        return kept
+    }
+
+    private fun overlapRatio(left: MaskOverlaySpec, right: MaskOverlaySpec): Float {
+        val overlapLeft = max(left.left, right.left)
+        val overlapTop = max(left.top, right.top)
+        val overlapRight = min(left.left + left.width, right.left + right.width)
+        val overlapBottom = min(left.top + left.height, right.top + right.height)
+        val overlapWidth = overlapRight - overlapLeft
+        val overlapHeight = overlapBottom - overlapTop
+        if (overlapWidth <= 0 || overlapHeight <= 0) return 0f
+
+        val overlapArea = overlapWidth * overlapHeight
+        val smallerArea = min(left.width * left.height, right.width * right.height).coerceAtLeast(1)
+        return overlapArea.toFloat() / smallerArea.toFloat()
+    }
+
+    private const val MASK_LABEL = "***"
 }
 
 class MaskOverlayController(
