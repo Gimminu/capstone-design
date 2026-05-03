@@ -5,14 +5,36 @@ import android.util.Log
 import com.google.gson.GsonBuilder
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.LinkedHashMap
+
+private data class CachedAnalysisResult(
+    val result: AndroidAnalysisResultItem,
+    val expiresAt: Long
+)
+
+private data class PendingComment(
+    val originalIndex: Int,
+    val comment: ParsedComment
+)
 
 object AndroidAnalysisClient {
 
     private const val TAG = "AndroidAnalysisClient"
     private const val CONNECT_TIMEOUT_MS = 1500
     private const val READ_TIMEOUT_MS = 4500
+    private const val RESPONSE_CACHE_LIMIT = 256
+    private const val RESPONSE_CACHE_TTL_MS = 30_000L
 
     private val gson = GsonBuilder().create()
+    private val responseCache = object : LinkedHashMap<String, CachedAnalysisResult>(
+        RESPONSE_CACHE_LIMIT,
+        0.75f,
+        true
+    ) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedAnalysisResult>?): Boolean {
+            return size > RESPONSE_CACHE_LIMIT
+        }
+    }
 
     fun analyzeSnapshot(context: Context, snapshot: ParseSnapshot): AndroidAnalysisAttempt {
         val url = AnalysisEndpointStore.resolveAnalyzeUrl(context)
@@ -35,6 +57,38 @@ object AndroidAnalysisClient {
             )
         }
 
+        val cachedResults = arrayOfNulls<AndroidAnalysisResultItem>(snapshot.comments.size)
+        val pendingEntries = mutableListOf<PendingComment>()
+
+        snapshot.comments.forEachIndexed { index, comment ->
+            val cached = getCachedResult(comment, startedAt)
+            if (cached != null) {
+                cachedResults[index] = cached
+            } else {
+                pendingEntries += PendingComment(index, comment)
+            }
+        }
+
+        if (pendingEntries.isEmpty()) {
+            val response = AndroidAnalysisResponse(
+                timestamp = snapshot.timestamp,
+                filteredCount = 0,
+                results = cachedResults.filterNotNull()
+            )
+            return AndroidAnalysisAttempt(
+                ok = true,
+                url = url,
+                latencyMs = System.currentTimeMillis() - startedAt,
+                commentCount = commentCount,
+                offensiveCount = countActionableOffensiveResults(response),
+                filteredCount = 0,
+                response = response,
+                actionableSamples = buildActionableSamples(response)
+            )
+        }
+
+        val requestSnapshot = snapshot.copy(comments = pendingEntries.map { it.comment })
+
         var connection: HttpURLConnection? = null
 
         return try {
@@ -50,7 +104,7 @@ object AndroidAnalysisClient {
             }
 
             connection.outputStream.use { output ->
-                output.write(gson.toJson(snapshot).toByteArray(Charsets.UTF_8))
+                output.write(gson.toJson(requestSnapshot).toByteArray(Charsets.UTF_8))
                 output.flush()
             }
 
@@ -74,12 +128,21 @@ object AndroidAnalysisClient {
                     error = "HTTP_$responseCode"
                 )
             } else {
-                val response = parseAndroidAnalysisResponse(responseText, commentCount)
-                val offensiveCount = countActionableOffensiveResults(response)
-                val actionableSamples = buildActionableSamples(response)
+                val response = parseAndroidAnalysisResponse(responseText, pendingEntries.size)
+                val mergedResponse = mergeCachedAndFreshResults(
+                    timestamp = snapshot.timestamp,
+                    cachedResults = cachedResults,
+                    pendingEntries = pendingEntries,
+                    freshResponse = response
+                )
+                cacheFreshResults(response.results)
+                val offensiveCount = countActionableOffensiveResults(mergedResponse)
+                val actionableSamples = buildActionableSamples(mergedResponse)
                 Log.d(
                     TAG,
-                    "analysis ok url=$url comments=$commentCount actionableOffensive=$offensiveCount latencyMs=$latencyMs"
+                    "analysis ok url=$url comments=$commentCount pending=${pendingEntries.size} " +
+                        "cacheHits=${commentCount - pendingEntries.size} actionableOffensive=$offensiveCount " +
+                        "latencyMs=$latencyMs"
                 )
                 AndroidAnalysisAttempt(
                     ok = true,
@@ -88,7 +151,7 @@ object AndroidAnalysisClient {
                     commentCount = commentCount,
                     offensiveCount = offensiveCount,
                     filteredCount = response.filteredCount,
-                    response = response,
+                    response = mergedResponse,
                     actionableSamples = actionableSamples
                 )
             }
@@ -109,6 +172,63 @@ object AndroidAnalysisClient {
         } finally {
             connection?.disconnect()
         }
+    }
+
+    private fun mergeCachedAndFreshResults(
+        timestamp: Long,
+        cachedResults: Array<AndroidAnalysisResultItem?>,
+        pendingEntries: List<PendingComment>,
+        freshResponse: AndroidAnalysisResponse
+    ): AndroidAnalysisResponse {
+        val freshResultQueues = freshResponse.results
+            .groupBy { cacheKey(it.original) }
+            .mapValues { (_, items) -> ArrayDeque(items) }
+        val merged = cachedResults.copyOf()
+
+        pendingEntries.forEach { pending ->
+            val comment = pending.comment
+            val queue = freshResultQueues[cacheKey(comment.commentText)]
+            val result = queue?.removeFirstOrNull()
+            if (result != null) {
+                merged[pending.originalIndex] = result
+            }
+        }
+
+        return AndroidAnalysisResponse(
+            timestamp = timestamp,
+            filteredCount = freshResponse.filteredCount,
+            results = merged.filterNotNull()
+        )
+    }
+
+    private fun getCachedResult(comment: ParsedComment, now: Long): AndroidAnalysisResultItem? {
+        val key = cacheKey(comment.commentText)
+        if (key.isBlank()) return null
+
+        return synchronized(responseCache) {
+            val cached = responseCache[key] ?: return@synchronized null
+            if (cached.expiresAt <= now) {
+                responseCache.remove(key)
+                return@synchronized null
+            }
+            cached.result.copy(boundsInScreen = comment.boundsInScreen)
+        }
+    }
+
+    private fun cacheFreshResults(results: List<AndroidAnalysisResultItem>) {
+        val expiresAt = System.currentTimeMillis() + RESPONSE_CACHE_TTL_MS
+        synchronized(responseCache) {
+            results.forEach { result ->
+                val key = cacheKey(result.original)
+                if (key.isNotBlank()) {
+                    responseCache[key] = CachedAnalysisResult(result, expiresAt)
+                }
+            }
+        }
+    }
+
+    private fun cacheKey(text: String): String {
+        return text.replace(Regex("\\s+"), " ").trim().lowercase()
     }
 
     internal fun parseAndroidAnalysisResponse(
