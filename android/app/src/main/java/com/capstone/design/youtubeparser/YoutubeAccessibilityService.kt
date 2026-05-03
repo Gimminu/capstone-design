@@ -309,7 +309,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
             return
         }
 
-        if (currentPackage == YOUTUBE_PACKAGE && analysis?.ok == true) {
+        if (supportsMaskOverlay(currentPackage) && analysis?.ok == true) {
             Log.d(
                 TAG,
                 "render mask overlay package=$currentPackage results=${analysis.response?.results?.size ?: 0}"
@@ -338,6 +338,13 @@ class YoutubeAccessibilityService : AccessibilityService() {
 
     private fun shouldLogRawNodes(): Boolean {
         return Log.isLoggable(TAG, Log.VERBOSE)
+    }
+
+    private fun supportsMaskOverlay(packageName: String): Boolean {
+        return packageName == YOUTUBE_PACKAGE ||
+            packageName == INSTAGRAM_PACKAGE ||
+            packageName == TIKTOK_PACKAGE ||
+            packageName == TIKTOK_ALT_PACKAGE
     }
 
     private fun extractVisibleTextNodesFromCurrentWindow(currentPackage: String): List<ParsedTextNode> {
