@@ -44,6 +44,23 @@ body:
     attributes:
       label: 제약 사항
       value: "- 입력창 fixed-token UX는 안정화 기준으로 보호\n- 일반 DOM은 exact span wrapper만 사용\n- UI 변경은 별도 PR로 검증"
+  - type: dropdown
+    id: constraint-code
+    attributes:
+      label: 제약 분류 코드
+      description: docs/constraints-and-decisions.md의 C1~C8 기준입니다.
+      multiple: true
+      options:
+        - C1 서비스 차별성
+        - C2 Backend 계약/모델
+        - C3 후보 수집/플랫폼 DOM
+        - C4 실시간성/비동기
+        - C5 마스킹 UI/렌더링
+        - C6 설정/민감도/캐시
+        - C7 Android 접근성/OCR
+        - C8 검증/운영 환경
+    validations:
+      required: true
   - type: textarea
     id: cause-notes
     attributes:

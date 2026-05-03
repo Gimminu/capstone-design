@@ -25,6 +25,25 @@
 | 이미지 내부 텍스트 | YouTube 썸네일/영상 프레임에 박힌 자막형 텍스트는 접근성 노드에 텍스트로 노출되지 않음 | 현재 접근성 기반 수집만으로는 모델에 전달할 문자열이 없어 마스킹 불가 | OCR/screenshot 분석은 별도 spike로 분리하고, 그 전까지는 이미지 전체 blanket masking 금지 |
 | 모바일 overlay UX | Android는 DOM span wrapper가 불가능하고 좌표 기반 overlay만 가능함 | 정확한 단어 위치를 모르면 `***` 또는 큰 박스가 어색하게 보일 수 있음 | 입력/짧은 텍스트는 compact token, 제목/큰 영역은 작은 chip 또는 축소 bounds로 표시하고 전체 카드 마스킹은 피함 |
 
+## 1-1. 제약 분류 코드
+
+새 문제나 개선 PR은 아래 코드 중 하나 이상으로 분류합니다.
+보고서에서는 이 코드를 “개발 과정에서 확인한 제약”의 축으로 사용합니다.
+
+| 코드 | 제약 축 | 판정 기준 | 대표 증거 |
+| --- | --- | --- | --- |
+| C1 | 서비스 차별성 | 단순 욕설 차단과 구분되는 가치가 필요한 경우 | 교수 피드백, 서비스 정의서, 모델 비교 결과 |
+| C2 | Backend 계약/모델 | `/analyze_batch`, `/analyze_android`, label, `evidence_spans`와 관련된 경우 | backend 응답, regression test, API 호출 로그 |
+| C3 | 후보 수집/플랫폼 DOM | Google/YouTube/GitHub/일반 웹에서 텍스트 후보가 누락되거나 과다 수집되는 경우 | DOM snippet, 접근성 dump, 후보 JSON |
+| C4 | 실시간성/비동기 | 사용자가 먼저 읽은 뒤 마스킹되거나 race/flicker가 생기는 경우 | popup latency, stale response log, 스크롤 재현 |
+| C5 | 마스킹 UI/렌더링 | 입력창, 일반 DOM, Android overlay의 위치/표현이 깨지는 경우 | 캡처, 영상, bounds, zoom/viewport 정보 |
+| C6 | 설정/민감도/캐시 | sensitivity, category, enabled 상태와 실제 적용 결과가 어긋나는 경우 | 설정 스냅샷, cache hit, schema/revision 로그 |
+| C7 | Android 접근성/OCR | Android 접근성 트리, 좌표 overlay, 이미지 내부 텍스트 한계와 관련된 경우 | uiautomator dump, parse/analysis JSON, APK 검증 |
+| C8 | 검증/운영 환경 | 로컬 서버, JDK, emulator, 네트워크, 재현 환경 문제인 경우 | 테스트 명령, build log, health check, device log |
+
+제약 코드는 문제를 단순 증상으로 남기지 않기 위한 최소 분류입니다.
+예를 들어 “YouTube 제목이 안 가려짐”은 C3 후보 수집 문제인지, C7 접근성 한계인지, C2 모델 미탐인지 먼저 구분해야 합니다.
+
 ## 2. 주요 의사결정
 
 ### Decision 1. 최종 판정은 backend 모델 기준으로 유지
