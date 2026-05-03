@@ -1,6 +1,7 @@
 package com.capstone.design.youtubeparser
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -12,7 +13,8 @@ class MaskOverlayPlannerTest {
             resultOf(
                 offensive = true,
                 bounds = BoundsRect(10, 20, 160, 70),
-                spans = listOf(EvidenceSpan("시발", 0, 2, 0.98))
+                spans = listOf(EvidenceSpan("시발", 0, 2, 0.98)),
+                original = "시발 뭐하는 거야"
             ),
             resultOf(
                 offensive = true,
@@ -28,7 +30,10 @@ class MaskOverlayPlannerTest {
 
         val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 320, screenHeight = 640)
 
-        assertEquals(listOf(MaskOverlaySpec(left = 10, top = 20, width = 150, height = 50, label = "•••")), specs)
+        assertEquals(1, specs.size)
+        assertEquals("•••", specs.single().label)
+        assertTrue(specs.single().width < 150)
+        assertTrue(specs.single().height <= 48)
     }
 
     @Test
@@ -37,13 +42,18 @@ class MaskOverlayPlannerTest {
             resultOf(
                 offensive = true,
                 bounds = BoundsRect(-20, -10, 220, 70),
-                spans = listOf(EvidenceSpan("욕", 0, 1, 0.9))
+                spans = listOf(EvidenceSpan("욕", 0, 1, 0.9)),
+                original = "욕"
             )
         )
 
         val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 320, screenHeight = 640)
 
-        assertEquals(listOf(MaskOverlaySpec(left = 0, top = 0, width = 220, height = 70, label = "•••")), specs)
+        assertEquals(1, specs.size)
+        assertEquals(0, specs.single().left)
+        assertTrue(specs.single().top >= 0)
+        assertTrue(specs.single().width <= 220)
+        assertTrue(specs.single().height <= 48)
     }
 
     @Test
@@ -77,13 +87,17 @@ class MaskOverlayPlannerTest {
             resultOf(
                 offensive = true,
                 bounds = BoundsRect(147, 84, 596, 168),
-                spans = listOf(EvidenceSpan("tlqkf", 0, 5, 0.99))
+                spans = listOf(EvidenceSpan("tlqkf", 0, 5, 0.99)),
+                original = "tlqkf 또 보여줘야 돼!"
             )
         )
 
         val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 1080, screenHeight = 2400)
 
-        assertEquals(listOf(MaskOverlaySpec(left = 147, top = 84, width = 449, height = 84, label = "•••")), specs)
+        assertEquals(1, specs.size)
+        assertEquals("•••", specs.single().label)
+        assertTrue(specs.single().width < 449)
+        assertTrue(specs.single().height <= 48)
     }
 
 
@@ -93,20 +107,23 @@ class MaskOverlayPlannerTest {
             resultOf(
                 offensive = true,
                 bounds = BoundsRect(10, 20, 160, 70),
-                spans = listOf(EvidenceSpan("시발", 0, 2, 0.98))
+                spans = listOf(EvidenceSpan("시발", 0, 2, 0.98)),
+                original = "시발 뭐하는 거야"
             ),
             resultOf(
                 offensive = true,
                 bounds = BoundsRect(10, 20, 160, 70),
-                spans = listOf(EvidenceSpan("시발", 0, 2, 0.98))
+                spans = listOf(EvidenceSpan("시발", 0, 2, 0.98)),
+                original = "시발 뭐하는 거야"
             )
         )
 
         val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 320, screenHeight = 640)
+        val specsAgain = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 320, screenHeight = 640)
         val signature = AndroidMaskOverlayPlanner.signature(specs)
 
         assertEquals(1, specs.size)
-        assertEquals("10,20,150,50,•••", signature)
+        assertEquals(signature, AndroidMaskOverlayPlanner.signature(specsAgain))
     }
 
     @Test
@@ -115,13 +132,17 @@ class MaskOverlayPlannerTest {
             resultOf(
                 offensive = true,
                 bounds = BoundsRect(160, 1266, 975, 1394),
-                spans = listOf(EvidenceSpan("tlqkf", 2, 7, 0.99))
+                spans = listOf(EvidenceSpan("tlqkf", 2, 7, 0.99)),
+                original = "🔥\"Tlqkf 또 보여줘야 돼!\" : 식케이"
             )
         )
 
         val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 1080, screenHeight = 2400)
 
-        assertEquals(listOf(MaskOverlaySpec(left = 160, top = 1266, width = 815, height = 128, label = "민감 표현")), specs)
+        assertEquals(1, specs.size)
+        assertEquals("•••", specs.single().label)
+        assertNotEquals(815, specs.single().width)
+        assertTrue(specs.single().height <= 48)
     }
 
     private fun responseOf(vararg results: AndroidAnalysisResultItem): AndroidAnalysisResponse {
@@ -135,10 +156,11 @@ class MaskOverlayPlannerTest {
     private fun resultOf(
         offensive: Boolean,
         bounds: BoundsRect,
-        spans: List<EvidenceSpan>
+        spans: List<EvidenceSpan>,
+        original: String = "sample"
     ): AndroidAnalysisResultItem {
         return AndroidAnalysisResultItem(
-            original = "sample",
+            original = original,
             boundsInScreen = bounds,
             isOffensive = offensive,
             isProfane = offensive,

@@ -13,6 +13,7 @@ import android.view.WindowManager
 import android.widget.TextView
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 data class MaskOverlaySpec(
     val left: Int,
@@ -25,6 +26,9 @@ data class MaskOverlaySpec(
 object AndroidMaskOverlayPlanner {
     private const val MIN_WIDTH_PX = 24
     private const val MIN_HEIGHT_PX = 16
+    private const val MIN_SPAN_MASK_WIDTH_PX = 30
+    private const val SPAN_HORIZONTAL_PADDING_PX = 8
+    private const val MAX_SPAN_MASK_HEIGHT_PX = 48
     private const val MAX_MASK_COUNT = 24
     private const val MAX_SCREEN_WIDTH_RATIO = 0.88f
     private const val MAX_SCREEN_HEIGHT_RATIO = 0.22f
@@ -41,7 +45,7 @@ object AndroidMaskOverlayPlanner {
         return response.results
             .asSequence()
             .filter { it.isOffensive && it.evidenceSpans.isNotEmpty() }
-            .mapNotNull { toSpec(it.boundsInScreen, screenWidth, screenHeight) }
+            .flatMap { toSpecs(it, screenWidth, screenHeight).asSequence() }
             .distinctBy { "${it.left}|${it.top}|${it.width}|${it.height}" }
             .take(MAX_MASK_COUNT)
             .toList()
@@ -49,6 +53,26 @@ object AndroidMaskOverlayPlanner {
 
     fun signature(specs: List<MaskOverlaySpec>): String {
         return specs.joinToString("|") { "${it.left},${it.top},${it.width},${it.height},${it.label}" }
+    }
+
+    private fun toSpecs(
+        item: AndroidAnalysisResultItem,
+        screenWidth: Int,
+        screenHeight: Int
+    ): List<MaskOverlaySpec> {
+        val fullSpec = toSpec(item.boundsInScreen, screenWidth, screenHeight) ?: return emptyList()
+        val originalLength = item.original.length
+        if (originalLength <= 0) return listOf(fullSpec)
+
+        val spanSpecs = item.evidenceSpans.mapNotNull { span ->
+            toSpanSpec(
+                fullSpec = fullSpec,
+                span = span,
+                originalLength = originalLength
+            )
+        }
+
+        return spanSpecs.ifEmpty { listOf(fullSpec) }
     }
 
     private fun toSpec(bounds: BoundsRect, screenWidth: Int, screenHeight: Int): MaskOverlaySpec? {
@@ -74,13 +98,67 @@ object AndroidMaskOverlayPlanner {
             top = top,
             width = width,
             height = height,
-            label = maskLabelFor(width, height)
+            label = MASK_LABEL
         )
     }
 
-    private fun maskLabelFor(width: Int, height: Int): String {
-        return if (width <= 180 || height <= 90) "•••" else "민감 표현"
+    private fun toSpanSpec(
+        fullSpec: MaskOverlaySpec,
+        span: EvidenceSpan,
+        originalLength: Int
+    ): MaskOverlaySpec? {
+        val start = span.start.coerceIn(0, originalLength)
+        val end = span.end.coerceIn(start, originalLength)
+        if (end <= start) return null
+
+        val startRatio = start.toFloat() / originalLength.toFloat()
+        val endRatio = end.toFloat() / originalLength.toFloat()
+        val rawLeft = fullSpec.left + (fullSpec.width * startRatio).roundToInt()
+        val rawRight = fullSpec.left + (fullSpec.width * endRatio).roundToInt()
+
+        val minWidth = minOf(
+            fullSpec.width,
+            maxOf(
+                MIN_SPAN_MASK_WIDTH_PX,
+                span.text.ifBlank { "•••" }.length * 18
+            )
+        )
+        val center = (rawLeft + rawRight) / 2
+        var left = rawLeft - SPAN_HORIZONTAL_PADDING_PX
+        var right = rawRight + SPAN_HORIZONTAL_PADDING_PX
+
+        if (right - left < minWidth) {
+            left = center - minWidth / 2
+            right = left + minWidth
+        }
+
+        if (left < fullSpec.left) {
+            right += fullSpec.left - left
+            left = fullSpec.left
+        }
+        if (right > fullSpec.left + fullSpec.width) {
+            left -= right - (fullSpec.left + fullSpec.width)
+            right = fullSpec.left + fullSpec.width
+        }
+        left = left.coerceAtLeast(fullSpec.left)
+        right = right.coerceAtMost(fullSpec.left + fullSpec.width)
+
+        val width = right - left
+        if (width < MIN_WIDTH_PX) return null
+
+        val height = minOf(fullSpec.height, MAX_SPAN_MASK_HEIGHT_PX).coerceAtLeast(MIN_HEIGHT_PX)
+        val top = fullSpec.top + ((fullSpec.height - height) / 2).coerceAtLeast(0)
+
+        return MaskOverlaySpec(
+            left = left,
+            top = top,
+            width = width,
+            height = height,
+            label = MASK_LABEL
+        )
     }
+
+    private const val MASK_LABEL = "•••"
 }
 
 class MaskOverlayController(
