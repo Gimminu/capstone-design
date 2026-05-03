@@ -63,7 +63,7 @@ object AndroidMaskOverlayPlanner {
         screenHeight: Int
     ): List<MaskOverlaySpec> {
         val fullSpec = toSpec(item.boundsInScreen, screenWidth, screenHeight) ?: return emptyList()
-        val originalLength = item.original.length
+        val originalLength = item.original.codePointCount(0, item.original.length)
         if (originalLength <= 0) return listOf(fullSpec)
 
         val spanSpecs = item.evidenceSpans.mapNotNull { span ->

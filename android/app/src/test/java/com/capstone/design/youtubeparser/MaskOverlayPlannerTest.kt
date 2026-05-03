@@ -188,6 +188,24 @@ class MaskOverlayPlannerTest {
         assertTrue(specs.single().width < 480)
     }
 
+    @Test
+    fun buildSpecs_usesBackendCodePointOffsetsForEmojiPrefixedText() {
+        val response = responseOf(
+            resultOf(
+                offensive = true,
+                bounds = BoundsRect(0, 100, 600, 150),
+                spans = listOf(EvidenceSpan("시발", 4, 6, 0.98)),
+                original = "😀😀😀😀시발"
+            )
+        )
+
+        val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 1080, screenHeight = 2400)
+
+        assertEquals(1, specs.size)
+        assertTrue(specs.single().left > 320)
+        assertTrue(specs.single().left < 520)
+    }
+
     private fun responseOf(vararg results: AndroidAnalysisResultItem): AndroidAnalysisResponse {
         return AndroidAnalysisResponse(
             timestamp = 1710000000000,
