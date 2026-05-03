@@ -128,6 +128,15 @@
 - 대안 보류 이유: 접근성 API가 글자별 bounding box를 제공하지 않는 상황에서 전체 fallback은 안정화가 아니라 오탐 체감을 키우는 동작이다.
 - 다음 단계: YouTube 썸네일/이미지 내부 텍스트나 큰 composite card까지 처리하려면 OCR/screenshot 기반 별도 검증을 진행한다.
 
+### Decision 12. Android 이미지 내부 텍스트는 visual text hot path로 분리
+
+- 선택: YouTube 썸네일/영상 프레임처럼 이미지 픽셀에 박힌 글자는 접근성 후보가 아니라 `VisualTextCandidate` 기반 OCR 후보로 별도 처리한다.
+- 이유: 접근성 노드는 이미지 내부 글자의 실제 위치를 제공하지 않으므로, 기존 overlay planner에 억지로 넣으면 `***`가 썸네일 상단이나 카드 중간에 떠다니는 문제가 반복된다.
+- 적용: OCR 결과가 들어왔을 때 backend 분석 결과의 `evidence_spans`를 OCR text box 안에만 투영하는 `VisualTextMaskPlanner`를 추가하고, 기존 접근성 text node path와 분리했다.
+- 대안: 카드 전체 또는 썸네일 전체를 민감 표현으로 덮는다.
+- 대안 보류 이유: backend가 실제 이미지 글자를 본 것이 아니거나 OCR box가 없는 상태에서 전체를 덮으면 근거 기반 차단이 아니라 blanket masking이 된다.
+- 다음 단계: `AccessibilityService.takeScreenshot` 기반 캡처, ML Kit/서버 OCR 중 하나를 선택해 2~4개 viewport 썸네일만 분석하는 성능 spike를 진행한다.
+
 ## 3. 보고서에 넣기 좋은 제약 요약
 
 청마루의 핵심 제약은 “정확한 문맥 판단”과 “사용자가 읽기 전 빠른 반영”이 서로 충돌한다는 점이다.
