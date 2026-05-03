@@ -91,6 +91,23 @@ class YoutubeAnalysisTargetExtractorTest {
     }
 
     @Test
+    fun extractTargets_removesChannelNameBeforeEnglishViewMetadata() {
+        val targets = YoutubeAnalysisTargetExtractor.extractTargets(
+            listOf(
+                contentDescriptionNode(
+                    "ssibal 뜻, semo playlist, 866 thousand views, 6 months ago - play video",
+                    0,
+                    420,
+                    1080,
+                    720
+                )
+            )
+        )
+
+        assertEquals(listOf("ssibal 뜻"), targets.map { it.commentText })
+    }
+
+    @Test
     fun extractTargets_extractsShortsGridTitleWithoutMaskingWholeCard() {
         val targets = YoutubeAnalysisTargetExtractor.extractTargets(
             listOf(

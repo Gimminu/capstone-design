@@ -133,18 +133,22 @@ object YoutubeAnalysisTargetExtractor {
             option = RegexOption.IGNORE_CASE
         ).find(normalized)?.range?.first
 
-        val rawTitle = when {
-            metadataStart != null -> normalized.substring(0, metadataStart)
-            shortsMetadataStart != null -> normalized.substring(0, shortsMetadataStart)
-            koreanMetadataStart != null -> normalized.substring(0, koreanMetadataStart)
+        val titleParts = when {
+            metadataStart != null -> normalized.substring(0, metadataStart) to false
+            shortsMetadataStart != null -> normalized.substring(0, shortsMetadataStart) to true
+            koreanMetadataStart != null -> normalized.substring(0, koreanMetadataStart) to true
             normalized.lowercase().contains(" - go to channel ") ->
-                normalized.substringBefore(" - Go to channel ").substringBefore(" - go to channel ")
-            normalized.lowercase().endsWith(" - play video") -> normalized.substringBeforeLast(" - ")
-            normalized.lowercase().endsWith(" - play short") -> normalized.substringBeforeLast(" - ")
+                normalized.substringBefore(" - Go to channel ").substringBefore(" - go to channel ") to false
+            normalized.lowercase().endsWith(" - play video") -> normalized.substringBeforeLast(" - ") to false
+            normalized.lowercase().endsWith(" - play short") -> normalized.substringBeforeLast(" - ") to false
             else -> return null
-        }.trim()
-
-        val titleWithoutChannelSuffix = stripLikelyChannelSuffix(rawTitle)
+        }
+        val rawTitle = titleParts.first.trim()
+        val titleWithoutChannelSuffix = if (titleParts.second) {
+            stripLikelyChannelSuffix(rawTitle)
+        } else {
+            rawTitle
+        }
         val titleWithoutInternalSuffix = titleWithoutChannelSuffix.indexOf('_')
             .takeIf { it > 0 }
             ?.let { titleWithoutChannelSuffix.substring(0, it).trim() }
@@ -172,8 +176,7 @@ object YoutubeAnalysisTargetExtractor {
             !suffixLower.contains("조회수") &&
             !suffixLower.contains("views") &&
             !suffixLower.contains("play video") &&
-            !suffixLower.contains("play short") &&
-            !looksLikeContentText(suffix)
+            !suffixLower.contains("play short")
 
         return if (suffixLooksLikeChannel) prefix else normalized
     }
