@@ -191,13 +191,30 @@ class MaskOverlayController(
         }
 
         clearViews()
-        specs.forEach { spec ->
-            val maskView = createMaskView(spec)
-            windowManager.addView(maskView, createMaskLayoutParams(spec))
-            activeViews += maskView
+
+        val nextViews = mutableListOf<View>()
+        try {
+            specs.forEach { spec ->
+                val maskView = createMaskView(spec)
+                windowManager.addView(maskView, createMaskLayoutParams(spec))
+                nextViews += maskView
+            }
+
+            activeViews += nextViews
+            Log.d(TAG, "render maskCount=${specs.size} signature=$signature")
+            lastSignature = signature
+        } catch (error: RuntimeException) {
+            nextViews.forEach { view ->
+                try {
+                    windowManager.removeView(view)
+                } catch (_: IllegalArgumentException) {
+                    // The view may already be detached after a fast window transition.
+                }
+            }
+            activeViews.clear()
+            lastSignature = ""
+            Log.w(TAG, "render mask overlay failed", error)
         }
-        Log.d(TAG, "render maskCount=${specs.size} signature=$signature")
-        lastSignature = signature
     }
 
     fun clear() {
