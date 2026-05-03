@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.graphics.Rect
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -35,9 +36,11 @@ class YoutubeAccessibilityService : AccessibilityService() {
     @Volatile private var followUpParseRequested = false
     @Volatile private var overlayRevision = 0L
     private var parseScheduled = false
+    private var scheduledParseAtMs = 0L
 
     private val parseRunnable = Runnable {
         parseScheduled = false
+        scheduledParseAtMs = 0L
         parseAndUploadCurrentWindow()
         if (followUpParseRequested && !analysisInFlight) {
             followUpParseRequested = false
@@ -97,18 +100,32 @@ class YoutubeAccessibilityService : AccessibilityService() {
     }
 
     private fun scheduleParse(delayMs: Long) {
-        if (parseScheduled) {
+        val safeDelayMs = delayMs.coerceAtLeast(0L)
+        val targetTimeMs = SystemClock.uptimeMillis() + safeDelayMs
+
+        if (analysisInFlight) {
             followUpParseRequested = true
             return
         }
 
+        if (parseScheduled) {
+            if (targetTimeMs < scheduledParseAtMs) {
+                handler.removeCallbacks(parseRunnable)
+            } else {
+                followUpParseRequested = true
+                return
+            }
+        }
+
         parseScheduled = true
-        handler.postDelayed(parseRunnable, delayMs)
+        scheduledParseAtMs = targetTimeMs
+        handler.postDelayed(parseRunnable, safeDelayMs)
     }
 
     private fun cancelScheduledParse() {
         handler.removeCallbacks(parseRunnable)
         parseScheduled = false
+        scheduledParseAtMs = 0L
         followUpParseRequested = false
     }
 
