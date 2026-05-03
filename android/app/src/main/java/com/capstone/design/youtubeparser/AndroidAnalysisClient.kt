@@ -42,6 +42,12 @@ object AndroidAnalysisClient {
         }
     }
 
+    fun clearCache() {
+        synchronized(responseCache) {
+            responseCache.clear()
+        }
+    }
+
     fun analyzeSnapshot(context: Context, snapshot: ParseSnapshot): AndroidAnalysisAttempt {
         val url = AnalysisEndpointStore.resolveAnalyzeUrl(context)
         val sensitivity = AnalysisSensitivityStore.get(context)

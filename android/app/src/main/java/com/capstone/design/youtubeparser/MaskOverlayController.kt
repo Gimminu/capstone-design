@@ -33,6 +33,9 @@ object AndroidMaskOverlayPlanner {
     private const val MAX_MASK_COUNT = 24
     private const val MAX_SCREEN_WIDTH_RATIO = 0.88f
     private const val MAX_SCREEN_HEIGHT_RATIO = 0.22f
+    private const val MAX_HIGH_CONFIDENCE_HEIGHT_PX = 160
+    private const val MAX_HIGH_CONFIDENCE_TEXT_LENGTH = 180
+    private const val MAX_HIGH_CONFIDENCE_AREA_RATIO = 0.09f
 
     fun buildSpecs(
         response: AndroidAnalysisResponse?,
@@ -64,7 +67,10 @@ object AndroidMaskOverlayPlanner {
     ): List<MaskOverlaySpec> {
         val fullSpec = toSpec(item.boundsInScreen, screenWidth, screenHeight) ?: return emptyList()
         val originalLength = item.original.codePointCount(0, item.original.length)
-        if (originalLength <= 0) return listOf(fullSpec)
+        if (originalLength <= 0) return emptyList()
+        if (!hasHighConfidenceTextBounds(fullSpec, originalLength, screenWidth, screenHeight)) {
+            return emptyList()
+        }
 
         val spanSpecs = item.evidenceSpans.mapNotNull { span ->
             toSpanSpec(
@@ -74,7 +80,25 @@ object AndroidMaskOverlayPlanner {
             )
         }
 
-        return spanSpecs.ifEmpty { listOf(fullSpec) }
+        return spanSpecs
+    }
+
+    private fun hasHighConfidenceTextBounds(
+        spec: MaskOverlaySpec,
+        originalLength: Int,
+        screenWidth: Int,
+        screenHeight: Int
+    ): Boolean {
+        if (originalLength > MAX_HIGH_CONFIDENCE_TEXT_LENGTH) return false
+        if (spec.height > MAX_HIGH_CONFIDENCE_HEIGHT_PX) return false
+
+        val screenArea = (screenWidth * screenHeight).coerceAtLeast(1)
+        val specArea = spec.width * spec.height
+        if (specArea.toFloat() / screenArea.toFloat() > MAX_HIGH_CONFIDENCE_AREA_RATIO) {
+            return false
+        }
+
+        return true
     }
 
     private fun toSpec(bounds: BoundsRect, screenWidth: Int, screenHeight: Int): MaskOverlaySpec? {

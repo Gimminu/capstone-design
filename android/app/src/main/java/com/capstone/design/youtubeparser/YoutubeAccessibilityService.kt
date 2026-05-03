@@ -37,6 +37,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
     @Volatile private var overlayRevision = 0L
     private var parseScheduled = false
     private var scheduledParseAtMs = 0L
+    private var lastAppliedSensitivity: Int? = null
 
     private val parseRunnable = Runnable {
         parseScheduled = false
@@ -134,6 +135,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
             Log.d(TAG, "lastObservedPackage is null")
             return
         }
+        syncSensitivityState()
 
         val nodes = when (currentPackage) {
             YOUTUBE_PACKAGE -> extractVisibleTextNodesFromYoutubeWindows()
@@ -328,6 +330,21 @@ class YoutubeAccessibilityService : AccessibilityService() {
         overlayRevision += 1
         lastSnapshotSignature = null
         maskOverlayController.clear()
+    }
+
+    private fun syncSensitivityState() {
+        val currentSensitivity = AnalysisSensitivityStore.get(applicationContext)
+        val previousSensitivity = lastAppliedSensitivity
+        if (previousSensitivity == null) {
+            lastAppliedSensitivity = currentSensitivity
+            return
+        }
+        if (previousSensitivity == currentSensitivity) return
+
+        lastAppliedSensitivity = currentSensitivity
+        AndroidAnalysisClient.clearCache()
+        clearMaskOverlay()
+        Log.d(TAG, "analysis sensitivity changed $previousSensitivity->$currentSensitivity; cleared cache and overlay")
     }
 
     private fun shouldClearOverlayImmediately(eventType: Int): Boolean {

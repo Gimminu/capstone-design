@@ -135,7 +135,7 @@ def _threshold_from_sensitivity(sensitivity: int | None, default: float) -> floa
         return default
     if value <= 0:
         return 1.01
-    # 0은 사실상 강한 확신만, 100은 더 공격적으로 판정한다.
+    # 0은 차단을 사실상 비활성화하고, 100은 더 공격적으로 판정한다.
     return max(0.35, min(0.99, 0.95 - (value / 100) * 0.55))
 
 

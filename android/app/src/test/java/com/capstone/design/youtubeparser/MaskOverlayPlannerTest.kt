@@ -100,6 +100,38 @@ class MaskOverlayPlannerTest {
         assertTrue(specs.single().height <= 48)
     }
 
+    @Test
+    fun buildSpecs_doesNotFallbackToWholeBoundsWhenSpanMappingFails() {
+        val response = responseOf(
+            resultOf(
+                offensive = true,
+                bounds = BoundsRect(40, 120, 540, 180),
+                spans = listOf(EvidenceSpan("욕", 99, 100, 0.99)),
+                original = "짧은 문장"
+            )
+        )
+
+        val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 1080, screenHeight = 2400)
+
+        assertTrue(specs.isEmpty())
+    }
+
+    @Test
+    fun buildSpecs_rejectsLargeUnstableTextContainers() {
+        val response = responseOf(
+            resultOf(
+                offensive = true,
+                bounds = BoundsRect(0, 260, 1040, 520),
+                spans = listOf(EvidenceSpan("시발", 0, 2, 0.99)),
+                original = "시발 " + "긴 설명 ".repeat(40)
+            )
+        )
+
+        val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 1080, screenHeight = 2400)
+
+        assertTrue(specs.isEmpty())
+    }
+
 
     @Test
     fun buildSpecs_deduplicatesSameGeometryAndBuildsStableSignature() {
