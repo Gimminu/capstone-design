@@ -127,6 +127,12 @@ class MainActivity : AppCompatActivity() {
             diagnostics.offensiveCount,
             diagnostics.filteredCount,
             diagnostics.latencyMs,
+            formatLatency(diagnostics.parseDelayMs),
+            formatLatency(diagnostics.candidateExtractionMs),
+            formatLatency(diagnostics.accessibilityMaskLatencyMs),
+            formatLatency(diagnostics.backendMaskLatencyMs),
+            formatLatency(diagnostics.visualOcrLatencyMs),
+            formatLatency(diagnostics.visualMaskLatencyMs),
             diagnostics.url,
             diagnostics.overlayCandidateCount,
             diagnostics.overlayRenderedCount,
@@ -142,5 +148,9 @@ class MainActivity : AppCompatActivity() {
             diagnostics.actionableSamples.takeIf { it.isNotEmpty() }?.joinToString("\n") ?: "-",
             diagnostics.error ?: "-"
         )
+    }
+
+    private fun formatLatency(valueMs: Long): String {
+        return if (valueMs >= 0L) "${valueMs}ms" else "-"
     }
 }

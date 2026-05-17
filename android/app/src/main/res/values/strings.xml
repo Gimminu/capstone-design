@@ -15,7 +15,7 @@
     <string name="analysis_sensitivity_help">0은 Android 마스킹을 끄고, 값이 높을수록 backend가 더 적극적으로 판정합니다.</string>
     <string name="analysis_diagnostics_label">최근 분석 진단</string>
     <string name="analysis_diagnostics_empty">아직 분석 기록이 없습니다. 접근성 서비스를 켠 뒤 대상 앱 댓글 화면을 열어주세요.</string>
-    <string name="analysis_diagnostics_value">시간: %1$s\n상태: %2$s\n대상 앱: %3$s\n분석 민감도: %4$s\n댓글 수: %5$d\n마스킹 가능 댓글 수: %6$d\n백엔드 filtered_count: %7$d\n지연: %8$dms\n주소: %9$s\nOverlay 후보: %10$d\nOverlay 렌더: %11$d\n좌표 불안정 제외: %12$d\n렌더 출처:\n%13$s\n이미지 텍스트 캡처: %14$s (%15$s)\nOCR 후보 ROI: %16$d / %17$d\nOCR 텍스트 후보: %18$d / %19$d\n후보 라우팅:\n%20$s\n근거 샘플:\n%21$s\n오류: %22$s</string>
+    <string name="analysis_diagnostics_value">시간: %1$s\n상태: %2$s\n대상 앱: %3$s\n분석 민감도: %4$s\n댓글 수: %5$d\n마스킹 가능 댓글 수: %6$d\n백엔드 filtered_count: %7$d\n백엔드 지연: %8$dms\n파싱 대기: %9$s\n후보 추출: %10$s\n접근성 즉시 마스크: %11$s\n백엔드 마스크: %12$s\nOCR 인식: %13$s\nOCR 마스크: %14$s\n주소: %15$s\nOverlay 후보: %16$d\nOverlay 렌더: %17$d\n좌표 불안정 제외: %18$d\n렌더 출처:\n%19$s\n이미지 텍스트 캡처: %20$s (%21$s)\nOCR 후보 ROI: %22$d / %23$d\nOCR 텍스트 후보: %24$d / %25$d\n후보 라우팅:\n%26$s\n근거 샘플:\n%27$s\n오류: %28$s</string>
     <string name="refresh_analysis_diagnostics">진단 새로고침</string>
     <string name="open_accessibility_settings">접근성 설정 열기</string>
     <string name="saved_server_endpoint">저장된 업로드 주소: %1$s</string>

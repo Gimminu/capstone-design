@@ -71,6 +71,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
     @Volatile private var visualSceneRevision = 0L
     private var parseScheduled = false
     private var scheduledParseAtMs = 0L
+    private var scheduledParseRequestedAtMs = 0L
     private var scheduledParseEventType: Int? = null
     private var lastScrollEventAtMs = 0L
     private var lastAbsoluteScrollX: Int? = null
@@ -132,11 +133,22 @@ class YoutubeAccessibilityService : AccessibilityService() {
     }
 
     private val parseRunnable = Runnable {
+        val parseStartedAtMs = SystemClock.uptimeMillis()
         val triggerEventType = scheduledParseEventType
+        val parseDelayMs = if (scheduledParseRequestedAtMs > 0L) {
+            parseStartedAtMs - scheduledParseRequestedAtMs
+        } else {
+            -1L
+        }
         parseScheduled = false
         scheduledParseAtMs = 0L
+        scheduledParseRequestedAtMs = 0L
         scheduledParseEventType = null
-        parseAndUploadCurrentWindow(triggerEventType)
+        parseAndUploadCurrentWindow(
+            triggerEventType = triggerEventType,
+            parseStartedAtMs = parseStartedAtMs,
+            parseDelayMs = parseDelayMs
+        )
         if (followUpParseRequested && !analysisInFlight) {
             followUpParseRequested = false
             scheduleDeferredFollowUpParse()
@@ -335,6 +347,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
 
         parseScheduled = true
         scheduledParseAtMs = targetTimeMs
+        scheduledParseRequestedAtMs = SystemClock.uptimeMillis()
         handler.postDelayed(parseRunnable, safeDelayMs)
     }
 
@@ -342,11 +355,16 @@ class YoutubeAccessibilityService : AccessibilityService() {
         handler.removeCallbacks(parseRunnable)
         parseScheduled = false
         scheduledParseAtMs = 0L
+        scheduledParseRequestedAtMs = 0L
         scheduledParseEventType = null
         followUpParseRequested = false
     }
 
-    private fun parseAndUploadCurrentWindow(triggerEventType: Int?) {
+    private fun parseAndUploadCurrentWindow(
+        triggerEventType: Int?,
+        parseStartedAtMs: Long,
+        parseDelayMs: Long
+    ) {
         val currentPackage = lastObservedPackage ?: run {
             Log.d(TAG, "lastObservedPackage is null")
             return
@@ -395,6 +413,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
         }
         val candidateRouteSamples = CandidateRoutingPolicy.summarize(screenCandidates)
         val comments = screenCandidates.map { it.toParsedComment() }
+        val candidateExtractionMs = SystemClock.uptimeMillis() - parseStartedAtMs
 
         Log.d(
             TAG,
@@ -403,6 +422,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
                 "lookaheadCandidates=$lookaheadCandidateCount " +
                 "charLocationNodes=$charLocationNodeCount charRangeCandidates=$charRangeCandidateCount " +
                 "visualRoiCandidates=${visualRoiPlan.candidateCount} visualRois=${visualRoiPlan.rois.size} " +
+                "parseDelayMs=$parseDelayMs candidateExtractionMs=$candidateExtractionMs " +
                 "routes=${candidateRouteSamples.joinToString(";")}"
         )
 
@@ -444,6 +464,9 @@ class YoutubeAccessibilityService : AccessibilityService() {
                 startVisualTextAnalysis(
                     packageName = currentPackage,
                     visualRoiPlan = visualRoiPlan,
+                    parseStartedAtMs = parseStartedAtMs,
+                    parseDelayMs = parseDelayMs,
+                    candidateExtractionMs = candidateExtractionMs,
                     clearExistingOverlay = !deferClearForVisualOnlyAnalysis,
                     clearExistingOverlayOnMiss = deferClearForVisualOnlyAnalysis
                 )
@@ -535,6 +558,9 @@ class YoutubeAccessibilityService : AccessibilityService() {
                 startVisualTextAnalysis(
                     packageName = currentPackage,
                     visualRoiPlan = visualRoiPlan,
+                    parseStartedAtMs = parseStartedAtMs,
+                    parseDelayMs = parseDelayMs,
+                    candidateExtractionMs = candidateExtractionMs,
                     clearExistingOverlay = false,
                     baseResponse = duplicateBaseResponse
                 )
@@ -565,19 +591,25 @@ class YoutubeAccessibilityService : AccessibilityService() {
         }
         val snapshotOverlayRevision = overlayRevision
         val snapshotVisualSceneRevision = visualSceneRevision
-        renderProvisionalAccessibilityMaskOverlay(
+        val accessibilityMaskLatencyMs = renderProvisionalAccessibilityMaskOverlay(
             packageName = currentPackage,
             screenCandidates = screenCandidates,
             candidateRouteSamples = candidateRouteSamples,
             visualRoiPlan = visualRoiPlan,
             snapshotOverlayRevision = snapshotOverlayRevision,
-            timestamp = now
+            timestamp = now,
+            parseStartedAtMs = parseStartedAtMs,
+            parseDelayMs = parseDelayMs,
+            candidateExtractionMs = candidateExtractionMs
         )
         val earlyVisualTextAnalysisStarted =
             currentPackage == YOUTUBE_PACKAGE &&
                 startVisualTextAnalysis(
                     packageName = currentPackage,
                     visualRoiPlan = visualRoiPlan,
+                    parseStartedAtMs = parseStartedAtMs,
+                    parseDelayMs = parseDelayMs,
+                    candidateExtractionMs = candidateExtractionMs,
                     clearExistingOverlay = false
                 )
         analysisInFlight = true
@@ -629,6 +661,10 @@ class YoutubeAccessibilityService : AccessibilityService() {
                 val analysis = rawAnalysis
                     .copy(
                         response = mergedResponse,
+                        parseDelayMs = parseDelayMs,
+                        candidateExtractionMs = candidateExtractionMs,
+                        accessibilityMaskLatencyMs = accessibilityMaskLatencyMs,
+                        backendMaskLatencyMs = SystemClock.uptimeMillis() - parseStartedAtMs,
                         commentCount = mergedResponse?.results?.size ?: rawAnalysis.commentCount,
                         offensiveCount = countActionableResults(mergedResponse),
                         filteredCount = mergedResponse?.filteredCount ?: rawAnalysis.filteredCount
@@ -669,6 +705,9 @@ class YoutubeAccessibilityService : AccessibilityService() {
                         startVisualTextAnalysis(
                             packageName = currentPackage,
                             visualRoiPlan = visualRoiPlan,
+                            parseStartedAtMs = parseStartedAtMs,
+                            parseDelayMs = parseDelayMs,
+                            candidateExtractionMs = candidateExtractionMs,
                             clearExistingOverlay = false,
                             baseResponse = analysis.response
                         )
@@ -709,12 +748,15 @@ class YoutubeAccessibilityService : AccessibilityService() {
         candidateRouteSamples: List<String>,
         visualRoiPlan: VisualTextRoiPlan,
         snapshotOverlayRevision: Long,
-        timestamp: Long
-    ) {
+        timestamp: Long,
+        parseStartedAtMs: Long,
+        parseDelayMs: Long,
+        candidateExtractionMs: Long
+    ): Long {
         val response = ProvisionalAccessibilityMaskBuilder.buildResponse(
             candidates = screenCandidates,
             timestamp = timestamp
-        ) ?: return
+        ) ?: return -1L
 
         val analysis = AndroidAnalysisAttempt(
             ok = true,
@@ -722,6 +764,9 @@ class YoutubeAccessibilityService : AccessibilityService() {
             url = "accessibility-provisional",
             sensitivity = AnalysisSensitivityStore.get(applicationContext),
             latencyMs = 0L,
+            parseDelayMs = parseDelayMs,
+            candidateExtractionMs = candidateExtractionMs,
+            accessibilityMaskLatencyMs = SystemClock.uptimeMillis() - parseStartedAtMs,
             commentCount = response.results.size,
             offensiveCount = response.results.size,
             filteredCount = response.filteredCount,
@@ -739,6 +784,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
             allowDuringScrollStabilization = true,
             preserveExistingPreciseVisualMasks = true
         )
+        return SystemClock.uptimeMillis() - parseStartedAtMs
     }
 
     private fun updateMaskOverlay(
@@ -1236,6 +1282,9 @@ class YoutubeAccessibilityService : AccessibilityService() {
     private fun startVisualTextAnalysis(
         packageName: String,
         visualRoiPlan: VisualTextRoiPlan,
+        parseStartedAtMs: Long = -1L,
+        parseDelayMs: Long = -1L,
+        candidateExtractionMs: Long = -1L,
         clearExistingOverlay: Boolean = true,
         clearExistingOverlayOnMiss: Boolean = false,
         baseResponse: AndroidAnalysisResponse? = null
@@ -1291,6 +1340,10 @@ class YoutubeAccessibilityService : AccessibilityService() {
                 visualRoiPlan = visualRoiPlan,
                 selectedOcrCandidates = earlyRenderableSemanticFallbackCandidates,
                 baseResponse = baseResponse,
+                parseDelayMs = parseDelayMs,
+                candidateExtractionMs = candidateExtractionMs,
+                visualStartedAtMs = lastVisualAnalysisStartedAtMs,
+                visualOcrLatencyMs = -1L,
                 snapshotOverlayRevision = snapshotOverlayRevision,
                 snapshotVisualSceneRevision = snapshotVisualSceneRevision,
                 visualRunId = visualRunId
@@ -1363,6 +1416,11 @@ class YoutubeAccessibilityService : AccessibilityService() {
                                 ocrCandidates = ocrCandidates,
                                 screenWidth = screenshotWidth,
                                 screenHeight = screenshotHeight,
+                                parseStartedAtMs = parseStartedAtMs,
+                                parseDelayMs = parseDelayMs,
+                                candidateExtractionMs = candidateExtractionMs,
+                                visualStartedAtMs = lastVisualAnalysisStartedAtMs,
+                                visualOcrLatencyMs = SystemClock.uptimeMillis() - lastVisualAnalysisStartedAtMs,
                                 snapshotOverlayRevision = snapshotOverlayRevision,
                                 snapshotVisualSceneRevision = snapshotVisualSceneRevision,
                                 baseResponse = baseResponse,
@@ -1435,6 +1493,11 @@ class YoutubeAccessibilityService : AccessibilityService() {
         ocrCandidates: List<ParsedComment>,
         screenWidth: Int,
         screenHeight: Int,
+        parseStartedAtMs: Long,
+        parseDelayMs: Long,
+        candidateExtractionMs: Long,
+        visualStartedAtMs: Long,
+        visualOcrLatencyMs: Long,
         snapshotOverlayRevision: Long,
         snapshotVisualSceneRevision: Long,
         baseResponse: AndroidAnalysisResponse?,
@@ -1489,6 +1552,10 @@ class YoutubeAccessibilityService : AccessibilityService() {
                     visualRoiPlan = visualRoiPlan,
                     selectedOcrCandidates = selectedVisualCandidates,
                     baseResponse = baseResponse,
+                    parseDelayMs = parseDelayMs,
+                    candidateExtractionMs = candidateExtractionMs,
+                    visualStartedAtMs = visualStartedAtMs,
+                    visualOcrLatencyMs = visualOcrLatencyMs,
                     snapshotOverlayRevision = snapshotOverlayRevision,
                     snapshotVisualSceneRevision = snapshotVisualSceneRevision,
                     visualRunId = visualRunId
@@ -1517,6 +1584,14 @@ class YoutubeAccessibilityService : AccessibilityService() {
                         applicationContext,
                         rawAnalysis
                             .copy(
+                                parseDelayMs = parseDelayMs,
+                                candidateExtractionMs = candidateExtractionMs,
+                                visualOcrLatencyMs = visualOcrLatencyMs,
+                                visualMaskLatencyMs = if (visualStartedAtMs > 0L) {
+                                    SystemClock.uptimeMillis() - visualStartedAtMs
+                                } else {
+                                    -1L
+                                },
                                 visualOcrRawCount = ocrCandidates.size,
                                 visualOcrSelectedCount = selectedVisualCandidates.size
                             )
@@ -1555,6 +1630,19 @@ class YoutubeAccessibilityService : AccessibilityService() {
                 val analysis = rawAnalysis
                     .copy(
                         response = mergedResponse,
+                        parseDelayMs = parseDelayMs,
+                        candidateExtractionMs = candidateExtractionMs,
+                        backendMaskLatencyMs = if (parseStartedAtMs > 0L) {
+                            SystemClock.uptimeMillis() - parseStartedAtMs
+                        } else {
+                            -1L
+                        },
+                        visualOcrLatencyMs = visualOcrLatencyMs,
+                        visualMaskLatencyMs = if (visualStartedAtMs > 0L) {
+                            SystemClock.uptimeMillis() - visualStartedAtMs
+                        } else {
+                            -1L
+                        },
                         commentCount = mergedResponse?.results?.size ?: rawAnalysis.commentCount,
                         offensiveCount = countActionableResults(mergedResponse),
                         filteredCount = mergedResponse?.filteredCount ?: rawAnalysis.filteredCount,
@@ -1584,6 +1672,10 @@ class YoutubeAccessibilityService : AccessibilityService() {
         visualRoiPlan: VisualTextRoiPlan,
         selectedOcrCandidates: List<ParsedComment>,
         baseResponse: AndroidAnalysisResponse? = null,
+        parseDelayMs: Long = -1L,
+        candidateExtractionMs: Long = -1L,
+        visualStartedAtMs: Long,
+        visualOcrLatencyMs: Long,
         snapshotOverlayRevision: Long,
         snapshotVisualSceneRevision: Long,
         visualRunId: Long
@@ -1596,6 +1688,14 @@ class YoutubeAccessibilityService : AccessibilityService() {
             url = "visual-ocr-provisional",
             sensitivity = AnalysisSensitivityStore.get(applicationContext),
             latencyMs = 0L,
+            parseDelayMs = parseDelayMs,
+            candidateExtractionMs = candidateExtractionMs,
+            visualOcrLatencyMs = visualOcrLatencyMs,
+            visualMaskLatencyMs = if (visualStartedAtMs > 0L) {
+                SystemClock.uptimeMillis() - visualStartedAtMs
+            } else {
+                -1L
+            },
             commentCount = response.results.size,
             offensiveCount = response.results.size,
             filteredCount = response.filteredCount,
