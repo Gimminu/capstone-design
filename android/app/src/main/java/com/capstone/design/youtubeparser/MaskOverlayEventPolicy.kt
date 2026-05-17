@@ -127,9 +127,13 @@ internal object MaskOverlayEventPolicy {
     fun shouldClearAfterAnalysisFailure(
         hasActiveMasks: Boolean,
         hasRenderableVisualRois: Boolean,
-        hasPreservedRecentAnalysisFailure: Boolean
+        hasProvisionalMasks: Boolean,
+        visualAnalysisInFlight: Boolean
     ): Boolean {
-        return !(hasActiveMasks && hasRenderableVisualRois && !hasPreservedRecentAnalysisFailure)
+        return !(
+            hasActiveMasks && (hasRenderableVisualRois || hasProvisionalMasks) ||
+                visualAnalysisInFlight && hasRenderableVisualRois
+            )
     }
 
     fun shouldRunVisualRefreshForDuplicateSnapshot(

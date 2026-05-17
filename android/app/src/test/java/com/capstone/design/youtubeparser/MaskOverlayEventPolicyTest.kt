@@ -331,33 +331,45 @@ class MaskOverlayEventPolicyTest {
     }
 
     @Test
-    fun shouldClearAfterAnalysisFailure_preservesOneFailureForRenderableVisualRetry() {
+    fun shouldClearAfterAnalysisFailure_preservesFallbackMasksUntilNextScreenEvent() {
         assertFalse(
             MaskOverlayEventPolicy.shouldClearAfterAnalysisFailure(
                 hasActiveMasks = true,
                 hasRenderableVisualRois = true,
-                hasPreservedRecentAnalysisFailure = false
+                hasProvisionalMasks = false,
+                visualAnalysisInFlight = false
             )
         )
-        assertTrue(
+        assertFalse(
             MaskOverlayEventPolicy.shouldClearAfterAnalysisFailure(
                 hasActiveMasks = true,
+                hasRenderableVisualRois = false,
+                hasProvisionalMasks = true,
+                visualAnalysisInFlight = false
+            )
+        )
+        assertFalse(
+            MaskOverlayEventPolicy.shouldClearAfterAnalysisFailure(
+                hasActiveMasks = false,
                 hasRenderableVisualRois = true,
-                hasPreservedRecentAnalysisFailure = true
+                hasProvisionalMasks = false,
+                visualAnalysisInFlight = true
             )
         )
         assertTrue(
             MaskOverlayEventPolicy.shouldClearAfterAnalysisFailure(
                 hasActiveMasks = false,
                 hasRenderableVisualRois = true,
-                hasPreservedRecentAnalysisFailure = false
+                hasProvisionalMasks = true,
+                visualAnalysisInFlight = false
             )
         )
         assertTrue(
             MaskOverlayEventPolicy.shouldClearAfterAnalysisFailure(
                 hasActiveMasks = true,
                 hasRenderableVisualRois = false,
-                hasPreservedRecentAnalysisFailure = false
+                hasProvisionalMasks = false,
+                visualAnalysisInFlight = true
             )
         )
     }

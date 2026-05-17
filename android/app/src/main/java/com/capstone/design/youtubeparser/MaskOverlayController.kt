@@ -409,6 +409,7 @@ object AndroidMaskOverlayPlanner {
             value == YOUTUBE_TITLE_ACCESSIBILITY_AUTHOR_ID ||
             value == YOUTUBE_SHORTS_TITLE_ACCESSIBILITY_AUTHOR_ID ||
             isCommentAccessibilityAuthor(value) ||
+            isAccessibilityCharRangeAuthor(value) ||
             isPreciseVisualAuthor(value)
     }
 
@@ -524,6 +525,10 @@ object AndroidMaskOverlayPlanner {
             return spec.width <= MAX_ACCESSIBILITY_RANGE_WIDTH_PX &&
                 spec.height <= MAX_ACCESSIBILITY_RANGE_HEIGHT_PX
         }
+        if (isAccessibilityCharRangeAuthor(authorId)) {
+            return spec.width <= MAX_ACCESSIBILITY_RANGE_WIDTH_PX &&
+                spec.height <= MAX_ACCESSIBILITY_RANGE_HEIGHT_PX
+        }
         if (isCommentAccessibilityAuthor(authorId)) {
             return hasStableCommentAccessibilityGeometry(
                 spec = spec,
@@ -626,6 +631,7 @@ object AndroidMaskOverlayPlanner {
         val value = authorId ?: return false
         return value.startsWith("android-accessibility:") ||
             value.startsWith("android-accessibility-range:") ||
+            value.startsWith("android-accessibility-char-range:") ||
             value.startsWith("android-accessibility-browser:") ||
             value.startsWith(ACCESSIBILITY_COMMENT_PREFIX) ||
             value.startsWith("screen:accessibility_text:")
@@ -637,6 +643,10 @@ object AndroidMaskOverlayPlanner {
 
     private fun isAccessibilityRangeAuthor(authorId: String?): Boolean {
         return authorId?.startsWith("android-accessibility-range:") == true
+    }
+
+    private fun isAccessibilityCharRangeAuthor(authorId: String?): Boolean {
+        return authorId?.startsWith("android-accessibility-char-range:") == true
     }
 
     private fun isCommentAccessibilityAuthor(authorId: String?): Boolean {
@@ -738,6 +748,10 @@ object AndroidMaskOverlayPlanner {
             return false
         }
 
+        if (isAccessibilityCharRangeAuthor(value)) {
+            return false
+        }
+
         if (isCommentAccessibilityAuthor(value)) {
             return false
         }
@@ -810,6 +824,13 @@ object AndroidMaskOverlayPlanner {
         val start = resolvedRange.first
         val end = resolvedRange.second
         if (end <= start) return null
+
+        if (isAccessibilityCharRangeAuthor(authorId) && isWholeTextSpan(start, end, originalLength)) {
+            return fullSpec.copy(
+                allowScrollTranslation = allowScrollTranslation,
+                debugSource = debugSource
+            )
+        }
 
         if (isYoutubeTitleAccessibilityAuthor(authorId)) {
             return toYoutubeTitleAccessibilitySpanSpec(

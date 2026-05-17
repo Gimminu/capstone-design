@@ -134,7 +134,8 @@ object YoutubeAnalysisTargetExtractor {
                 right = node.right,
                 bottom = node.bottom
             ),
-            authorId = stableYoutubeAccessibilityAuthor(node, text, width, height, className)
+            authorId = stableYoutubeAccessibilityAuthor(node, text, width, height, className),
+            charBoxes = node.charBoxes
         ).withVisibility(visibility)
     }
 
@@ -159,7 +160,8 @@ object YoutubeAnalysisTargetExtractor {
                 right = node.right,
                 bottom = node.bottom
             ),
-            authorId = YOUTUBE_USER_INPUT_AUTHOR_ID
+            authorId = YOUTUBE_USER_INPUT_AUTHOR_ID,
+            charBoxes = node.charBoxes
         )
     }
 
@@ -352,7 +354,8 @@ object YoutubeAnalysisTargetExtractor {
                 shortsTitle -> YOUTUBE_SHORTS_TITLE_AUTHOR_ID
                 playlistTitle -> YOUTUBE_STABLE_TITLE_AUTHOR_ID
                 else -> COMPOSITE_DESCRIPTION_AUTHOR_ID
-            }
+            },
+            charBoxes = node.charBoxes
         )
     }
 

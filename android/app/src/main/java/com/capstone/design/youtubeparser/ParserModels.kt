@@ -21,14 +21,16 @@ data class ParsedTextNode(
     val right: Int,
     val bottom: Int,
     val approxTop: Int,
-    val isVisibleToUser: Boolean
+    val isVisibleToUser: Boolean,
+    val charBoxes: List<CharBox> = emptyList()
 )
 
 data class ParsedComment(
     val commentText: String,
     val boundsInScreen: BoundsRect,
     @SerializedName("author_id")
-    val authorId: String? = null
+    val authorId: String? = null,
+    @Transient val charBoxes: List<CharBox> = emptyList()
 )
 
 enum class CandidateSource {

@@ -67,6 +67,15 @@ object CandidateRoutingPolicy {
             )
         }
 
+        if (baseSourceId.startsWith("android-accessibility-char-range:")) {
+            return CandidateRoute(
+                surface = surfaceFor(packageName, baseSourceId, role),
+                geometryPolicy = CandidateGeometryPolicy.ACCESSIBILITY_EXACT,
+                renderPolicy = CandidateRenderPolicy.DIRECT_OVERLAY,
+                reason = "accessibility-character-location-bounds"
+            )
+        }
+
         if (baseSourceId.startsWith("youtube-visual-range:") ||
             baseSourceId == "youtube-composite-description"
         ) {
@@ -185,6 +194,12 @@ object CandidateRoutingPolicy {
                 baseSourceId == YOUTUBE_TITLE_AUTHOR_ID -> CandidateSurface.YOUTUBE_TITLE
                 baseSourceId == YOUTUBE_SHORTS_TITLE_AUTHOR_ID -> CandidateSurface.YOUTUBE_SHORTS_TITLE
                 baseSourceId.startsWith(ACCESSIBILITY_COMMENT_PREFIX) -> CandidateSurface.YOUTUBE_COMMENT
+                baseSourceId.startsWith("android-accessibility-char-range:") -> when (role) {
+                    CandidateRole.USER_INPUT -> CandidateSurface.YOUTUBE_SEARCH_INPUT
+                    CandidateRole.TITLE -> CandidateSurface.YOUTUBE_TITLE
+                    CandidateRole.CONTENT -> CandidateSurface.YOUTUBE_COMMENT
+                    else -> CandidateSurface.GENERIC_TEXT
+                }
                 baseSourceId.startsWith("youtube-visual-range:") ||
                     baseSourceId.startsWith("ocr:") ||
                     baseSourceId == "youtube-composite-description" -> CandidateSurface.YOUTUBE_VISUAL_TEXT

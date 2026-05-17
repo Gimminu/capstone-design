@@ -186,6 +186,21 @@ class AndroidAnalysisClientTest {
     }
 
     @Test
+    fun cacheKeysForComment_addsTextOnlyAliasForAccessibilityCharacterRangeCandidate() {
+        val candidate = ParsedComment(
+            commentText = "tlqkf",
+            boundsInScreen = BoundsRect(left = 118, top = 520, right = 262, bottom = 558),
+            authorId = "android-accessibility-char-range:Tlqkf"
+        )
+
+        val keys = AndroidAnalysisClient.cacheKeysForComment(candidate, sensitivity = 2)
+
+        assertEquals(2, keys.size)
+        assertTrue(keys.any { it.contains("android-accessibility-char-range") })
+        assertTrue(keys.contains("2::tlqkf"))
+    }
+
+    @Test
     fun cacheKeysForComment_reusesLookaheadYoutubeTitleUnderVisibleSourceAndTextAlias() {
         val candidate = ParsedComment(
             commentText = "What is 'Tlqkf'?_Contemporary Korean Slang",

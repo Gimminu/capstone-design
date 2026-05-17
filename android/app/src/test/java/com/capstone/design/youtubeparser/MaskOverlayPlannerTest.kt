@@ -967,6 +967,26 @@ class MaskOverlayPlannerTest {
     }
 
     @Test
+    fun buildSpecs_keepsAccessibilityCharacterRangeMasksTranslatable() {
+        val response = responseOf(
+            resultOf(
+                offensive = true,
+                bounds = BoundsRect(118, 520, 262, 558),
+                spans = listOf(EvidenceSpan("tlqkf", 0, 5, 0.99)),
+                original = "tlqkf",
+                authorId = "android-accessibility-char-range:Tlqkf"
+            )
+        )
+
+        val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 1080, screenHeight = 2400)
+
+        assertEquals(1, specs.size)
+        assertEquals(118, specs.single().left)
+        assertEquals(520, specs.single().top)
+        assertTrue(specs.single().allowScrollTranslation)
+    }
+
+    @Test
     fun translateSpecs_doesNotDragEstimatedAccessibilityRangeMasksDuringScroll() {
         val response = responseOf(
             resultOf(
