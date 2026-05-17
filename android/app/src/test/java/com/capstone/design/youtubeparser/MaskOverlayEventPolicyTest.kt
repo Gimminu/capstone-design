@@ -375,6 +375,38 @@ class MaskOverlayEventPolicyTest {
     }
 
     @Test
+    fun shouldDeferVisualInvalidationForContentChange_ignoresImmediateLayoutNoise() {
+        assertTrue(
+            MaskOverlayEventPolicy.shouldDeferVisualInvalidationForContentChange(
+                eventType = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+                visualAnalysisInFlight = true,
+                elapsedSinceVisualAnalysisStartMs = 120L
+            )
+        )
+        assertFalse(
+            MaskOverlayEventPolicy.shouldDeferVisualInvalidationForContentChange(
+                eventType = AccessibilityEvent.TYPE_VIEW_SCROLLED,
+                visualAnalysisInFlight = true,
+                elapsedSinceVisualAnalysisStartMs = 32L
+            )
+        )
+        assertFalse(
+            MaskOverlayEventPolicy.shouldDeferVisualInvalidationForContentChange(
+                eventType = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+                visualAnalysisInFlight = false,
+                elapsedSinceVisualAnalysisStartMs = 32L
+            )
+        )
+        assertFalse(
+            MaskOverlayEventPolicy.shouldDeferVisualInvalidationForContentChange(
+                eventType = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+                visualAnalysisInFlight = true,
+                elapsedSinceVisualAnalysisStartMs = 250L
+            )
+        )
+    }
+
+    @Test
     fun shouldRunVisualRefreshForDuplicateSnapshot_runsOnlyWhenVisualWorkIsMissing() {
         assertTrue(
             MaskOverlayEventPolicy.shouldRunVisualRefreshForDuplicateSnapshot(

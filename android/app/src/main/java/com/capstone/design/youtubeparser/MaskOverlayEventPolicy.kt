@@ -17,6 +17,7 @@ internal object MaskOverlayEventPolicy {
     private const val TAKE_SCREENSHOT_INTERVAL_TOO_SHORT_ERROR_CODE = 3
     private const val MIN_SCREENSHOT_REQUEST_INTERVAL_MS = 380L
     private const val SCREENSHOT_RETRY_GRACE_MS = 64L
+    private const val VISUAL_CONTENT_CHANGE_INVALIDATION_GRACE_MS = 180L
 
     fun resolveScrollTranslationDelta(
         eventType: Int,
@@ -134,6 +135,16 @@ internal object MaskOverlayEventPolicy {
             hasActiveMasks && (hasRenderableVisualRois || hasProvisionalMasks) ||
                 visualAnalysisInFlight && hasRenderableVisualRois
             )
+    }
+
+    fun shouldDeferVisualInvalidationForContentChange(
+        eventType: Int,
+        visualAnalysisInFlight: Boolean,
+        elapsedSinceVisualAnalysisStartMs: Long
+    ): Boolean {
+        return eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
+            visualAnalysisInFlight &&
+            elapsedSinceVisualAnalysisStartMs in 0..VISUAL_CONTENT_CHANGE_INVALIDATION_GRACE_MS
     }
 
     fun shouldRunVisualRefreshForDuplicateSnapshot(

@@ -45,7 +45,6 @@ class YoutubeAccessibilityService : AccessibilityService() {
         private const val RETRY_AFTER_IN_FLIGHT_MS = 16L
         private const val VISUAL_SUPPLEMENT_CACHE_TTL_MS = 1800L
         private const val VISUAL_ANALYSIS_TIMEOUT_MS = 1800L
-        private const val VISUAL_CONTENT_CHANGE_INVALIDATION_GRACE_MS = 96L
         private const val MAX_VISUAL_ANALYSIS_CANDIDATES = 16
         private const val MAX_FALLBACK_VISUAL_CANDIDATES = 12
         private const val VISUAL_DUPLICATE_OVERLAP_RATIO = 0.45f
@@ -199,11 +198,19 @@ class YoutubeAccessibilityService : AccessibilityService() {
                     event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
                         hasActiveMasks &&
                         !overlaySelfContentChange
+                val elapsedSinceVisualAnalysisStartMs =
+                    SystemClock.uptimeMillis() - lastVisualAnalysisStartedAtMs
+                val deferVisualInvalidationForContentChange =
+                    MaskOverlayEventPolicy.shouldDeferVisualInvalidationForContentChange(
+                        eventType = event.eventType,
+                        visualAnalysisInFlight = visualAnalysisInFlight,
+                        elapsedSinceVisualAnalysisStartMs = elapsedSinceVisualAnalysisStartMs
+                    )
                 val visualSceneChanged = shouldInvalidateVisualScene(
                     event.eventType,
                     contentChangedWithActiveMask || overlaySelfContentChange,
                     visualAnalysisInFlight,
-                    SystemClock.uptimeMillis() - lastVisualAnalysisStartedAtMs
+                    elapsedSinceVisualAnalysisStartMs
                 )
                 if (contentChangedWithActiveMask) {
                     lastOverlayContentChangeAtMs = SystemClock.uptimeMillis()
@@ -247,7 +254,9 @@ class YoutubeAccessibilityService : AccessibilityService() {
                 ) {
                     Log.d(TAG, "preserve mask overlay during scroll content change")
                     markOverlayRevisionStale()
-                    markVisualSceneChanged(event.eventType)
+                    if (!deferVisualInvalidationForContentChange) {
+                        markVisualSceneChanged(event.eventType)
+                    }
                 } else if (
                     event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED &&
                     maskOverlayController.hasActiveMasks()
@@ -256,7 +265,9 @@ class YoutubeAccessibilityService : AccessibilityService() {
                 } else if (contentChangedWithActiveMask) {
                     Log.d(TAG, "preserve mask overlay until content recapture")
                     markOverlayRevisionStale()
-                    markVisualSceneChanged(event.eventType)
+                    if (!deferVisualInvalidationForContentChange) {
+                        markVisualSceneChanged(event.eventType)
+                    }
                     scheduleDeferredFollowUpParse(waitForScrollStabilization = true)
                 } else if (shouldClearOverlayImmediately(event.eventType)) {
                     clearMaskOverlay()
@@ -879,9 +890,11 @@ class YoutubeAccessibilityService : AccessibilityService() {
         elapsedSinceVisualAnalysisStartMs: Long
     ): Boolean {
         if (
-            eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
-            visualAnalysisInFlight &&
-            elapsedSinceVisualAnalysisStartMs in 0..VISUAL_CONTENT_CHANGE_INVALIDATION_GRACE_MS
+            MaskOverlayEventPolicy.shouldDeferVisualInvalidationForContentChange(
+                eventType = eventType,
+                visualAnalysisInFlight = visualAnalysisInFlight,
+                elapsedSinceVisualAnalysisStartMs = elapsedSinceVisualAnalysisStartMs
+            )
         ) {
             return false
         }
