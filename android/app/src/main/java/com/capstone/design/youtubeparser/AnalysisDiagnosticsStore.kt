@@ -12,6 +12,12 @@ object AnalysisDiagnosticsStore {
     private const val KEY_URL = "analysis_diagnostics_url"
     private const val KEY_SENSITIVITY = "analysis_diagnostics_sensitivity"
     private const val KEY_LATENCY_MS = "analysis_diagnostics_latency_ms"
+    private const val KEY_PARSE_DELAY_MS = "analysis_diagnostics_parse_delay_ms"
+    private const val KEY_CANDIDATE_EXTRACTION_MS = "analysis_diagnostics_candidate_extraction_ms"
+    private const val KEY_ACCESSIBILITY_MASK_LATENCY_MS = "analysis_diagnostics_accessibility_mask_latency_ms"
+    private const val KEY_BACKEND_MASK_LATENCY_MS = "analysis_diagnostics_backend_mask_latency_ms"
+    private const val KEY_VISUAL_OCR_LATENCY_MS = "analysis_diagnostics_visual_ocr_latency_ms"
+    private const val KEY_VISUAL_MASK_LATENCY_MS = "analysis_diagnostics_visual_mask_latency_ms"
     private const val KEY_COMMENT_COUNT = "analysis_diagnostics_comment_count"
     private const val KEY_OFFENSIVE_COUNT = "analysis_diagnostics_offensive_count"
     private const val KEY_FILTERED_COUNT = "analysis_diagnostics_filtered_count"
@@ -38,6 +44,12 @@ object AnalysisDiagnosticsStore {
             putString(KEY_URL, attempt.url)
             putInt(KEY_SENSITIVITY, attempt.sensitivity ?: -1)
             putLong(KEY_LATENCY_MS, attempt.latencyMs)
+            putLong(KEY_PARSE_DELAY_MS, attempt.parseDelayMs)
+            putLong(KEY_CANDIDATE_EXTRACTION_MS, attempt.candidateExtractionMs)
+            putLong(KEY_ACCESSIBILITY_MASK_LATENCY_MS, attempt.accessibilityMaskLatencyMs)
+            putLong(KEY_BACKEND_MASK_LATENCY_MS, attempt.backendMaskLatencyMs)
+            putLong(KEY_VISUAL_OCR_LATENCY_MS, attempt.visualOcrLatencyMs)
+            putLong(KEY_VISUAL_MASK_LATENCY_MS, attempt.visualMaskLatencyMs)
             putInt(KEY_COMMENT_COUNT, attempt.commentCount)
             putInt(KEY_OFFENSIVE_COUNT, attempt.offensiveCount)
             putInt(KEY_FILTERED_COUNT, attempt.filteredCount)
@@ -69,6 +81,12 @@ object AnalysisDiagnosticsStore {
             url = prefs.getString(KEY_URL, "").orEmpty(),
             sensitivity = prefs.getInt(KEY_SENSITIVITY, -1).takeIf { it >= 0 },
             latencyMs = prefs.getLong(KEY_LATENCY_MS, 0L),
+            parseDelayMs = prefs.getLong(KEY_PARSE_DELAY_MS, -1L),
+            candidateExtractionMs = prefs.getLong(KEY_CANDIDATE_EXTRACTION_MS, -1L),
+            accessibilityMaskLatencyMs = prefs.getLong(KEY_ACCESSIBILITY_MASK_LATENCY_MS, -1L),
+            backendMaskLatencyMs = prefs.getLong(KEY_BACKEND_MASK_LATENCY_MS, -1L),
+            visualOcrLatencyMs = prefs.getLong(KEY_VISUAL_OCR_LATENCY_MS, -1L),
+            visualMaskLatencyMs = prefs.getLong(KEY_VISUAL_MASK_LATENCY_MS, -1L),
             commentCount = prefs.getInt(KEY_COMMENT_COUNT, 0),
             offensiveCount = prefs.getInt(KEY_OFFENSIVE_COUNT, 0),
             filteredCount = prefs.getInt(KEY_FILTERED_COUNT, 0),
