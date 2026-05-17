@@ -9,6 +9,9 @@
 | --- | --- |
 | `chungmaru-progress-log.jsonl` | 한 줄이 하나의 실패, 실험, 개선, 회귀, 검증, 의사결정입니다. |
 | `chungmaru-progress-index.md` | JSONL에서 생성되는 사람이 읽는 인덱스입니다. 직접 편집하지 않습니다. |
+| `evidence-matrix.md` | 심사 대응 To-do-list를 모델/파서/통합 흐름 증거판으로 재구성한 추적 문서입니다. |
+| `model-evaluation-snapshot.md` | 현재 모델 성능, FP/FN, topic-bias, score bucket을 보고서용으로 축약한 문서입니다. |
+| `parser-extractor-before-after.md` | raw JSONL과 cleaned JSONL의 before/after 표와 정제 규칙 증거입니다. |
 
 ## 기록 단위
 
@@ -31,8 +34,12 @@
 python3 scripts/chungmaru_evidence.py backfill-git \
   --revision-range origin/main..HEAD \
   --linear-issue BBA-79 \
-  --github-pr https://github.com/BbangYi/ChungMaru/pull/32 \
-  --session-id 019e3546-cfae-7450-880d-006c2f1102d5 \
+  --github-pr https://github.com/BbangYi/ChungMaru/pull/33 \
+  --source-session-id 019e1b02-4966-7d50-ac1b-ec191478dcd6 \
+  --registrar-session-id 019e3546-cfae-7450-880d-006c2f1102d5 \
+  --worktree-role experiment \
+  --source-branch codex/android-mask-latency-diagnostics \
+  --integration-branch main \
   --write
 ```
 
@@ -49,8 +56,13 @@ python3 scripts/chungmaru_evidence.py add \
   --outcome observed \
   --constraints C4,C5,C7 \
   --linear-issue BBA-79 \
-  --github-pr https://github.com/BbangYi/ChungMaru/pull/32 \
-  --session-id 019e3546-cfae-7450-880d-006c2f1102d5 \
+  --github-pr https://github.com/BbangYi/ChungMaru/pull/33 \
+  --source-session-id 019e1b02-4966-7d50-ac1b-ec191478dcd6 \
+  --registrar-session-id 019e3546-cfae-7450-880d-006c2f1102d5 \
+  --worktree-role experiment \
+  --source-branch codex/android-mask-latency-diagnostics \
+  --integration-branch main \
+  --evidence-quality screenshot-backed \
   --tag android \
   --tag youtube \
   --tag scroll \
@@ -62,6 +74,13 @@ python3 scripts/chungmaru_evidence.py add \
 ```bash
 python3 scripts/chungmaru_evidence.py validate
 python3 scripts/chungmaru_evidence.py summarize
+```
+
+Worktree 상태를 확인할 때:
+
+```bash
+python3 scripts/chungmaru_evidence.py audit-worktrees
+python3 scripts/chungmaru_evidence.py audit-worktrees --show-status
 ```
 
 ## 커밋/태그 정책
@@ -83,3 +102,9 @@ python3 scripts/chungmaru_evidence.py summarize
 - 자동 backfill 항목은 커밋 추적용입니다. 최종 보고서에 쓰려면 캡처, 로그, 테스트, PR 중 하나를 보강해야 합니다.
 - Android 마스킹 문제는 `C4` 실시간성, `C5` 마스킹 UI, `C7` 접근성/OCR 제약을 함께 봅니다.
 - GitHub PR과 Linear는 같은 evidence key를 참조하도록 맞춥니다.
+- `source_session_id`는 실제 오류/개발/검증이 발생한 Codex 세션입니다.
+- `registrar_session_id`는 나중에 evidence ledger나 Notion에 정리한 세션 또는 자동화 실행입니다.
+- `evidence_quality=commit-only`는 추적용일 뿐 보고서 증거가 아닙니다. 보고서에는 `log-backed`, `screenshot-backed`, `test-backed`, `artifact-backed`, `report-ready` 항목만 사용합니다.
+- 긴 Android/backend/extension 개발은 worktree에서 격리하고, official repo는 ledger, Notion, PR 정리 기준으로 씁니다.
+- `worktree_role=experiment`는 진행 중 실험, `verification`은 merge 전 검증, `reporting`은 문서/evidence 정리, `integration`은 main 반영 전 통합 확인입니다.
+- ledger에는 `worktree_path`, `source_branch`, `integration_branch`를 남겨서 계속 진행되는 개발 세션과 최종 정리 위치를 분리합니다.

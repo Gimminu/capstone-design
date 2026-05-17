@@ -265,6 +265,12 @@ gh issue view <number>
 3. 사용자가 캡처로 보여준 새로운 이상 현상은 먼저 `failure`로 등록하고, 다음 커밋이 그 실패를 줄였는지 별도 `improvement` 또는 `verification`으로 남깁니다.
 4. Android 실시간 마스킹은 기본적으로 `BBA-79`, `C4`, `C5`, `C7`을 함께 확인합니다.
 5. PR 본문과 Linear 코멘트는 `docs/evidence/chungmaru-progress-index.md`의 항목을 기준으로 작성합니다.
+6. 개발 세션과 등록 세션을 분리합니다. `source_session_id`는 실제 오류/개발/검증이 나온 세션이고, `registrar_session_id`는 이 내용을 ledger/Notion에 정리한 세션 또는 자동화입니다.
+7. `evidence_quality=commit-only`는 추적용입니다. 최종 보고서에 쓰려면 최소 `log-backed`, 화면 증거가 있으면 `screenshot-backed`, 검증 중심이면 `test-backed`, 표/fixture/PPT 자산이면 `artifact-backed`, 바로 삽입 가능한 항목이면 `report-ready`로 올립니다.
+8. 개발 세션이 계속 이어질 때는 worktree를 실험 격리 장치로 쓰고, official checkout은 ledger/Notion/PR 정리 기준으로 둡니다.
+9. worktree에서 나온 증거는 `worktree_path`, `worktree_role`, `source_branch`, `integration_branch`를 함께 기록합니다.
+10. Notion에는 모든 ledger row를 옮기지 않습니다. 심사 대응에 필요한 대표 문제, blocker, report-ready 후보만 기존 카드 중심으로 갱신합니다.
+11. 매번 정리할 때는 모델, 파서/추출기, 통합 흐름 중 3-5개 대표 문제만 뽑아 board 상태를 갱신합니다.
 
 기본 명령은 아래와 같습니다.
 
@@ -272,9 +278,44 @@ gh issue view <number>
 python3 scripts/chungmaru_evidence.py backfill-git \
   --revision-range origin/main..HEAD \
   --linear-issue BBA-79 \
-  --github-pr https://github.com/BbangYi/ChungMaru/pull/32 \
-  --session-id 019e3546-cfae-7450-880d-006c2f1102d5 \
+  --github-pr https://github.com/BbangYi/ChungMaru/pull/33 \
+  --source-session-id 019e1b02-4966-7d50-ac1b-ec191478dcd6 \
+  --registrar-session-id 019e3546-cfae-7450-880d-006c2f1102d5 \
+  --worktree-role experiment \
+  --source-branch codex/android-mask-latency-diagnostics \
+  --integration-branch main \
   --write
 
+python3 scripts/chungmaru_evidence.py audit-worktrees
 python3 scripts/chungmaru_evidence.py validate
 ```
+
+## 13. Worktree 운영 원칙
+
+worktree는 기록 저장소가 아니라 작업 격리 장치입니다.
+Git history는 최종 PR/merge에서 얕게 정리하고, 실패와 실험의 자세한 맥락은 evidence ledger에 남깁니다.
+
+| 상황 | 권장 위치 | 이유 |
+| --- | --- | --- |
+| Android 실기기, overlay, OCR, scroll 실험 | 별도 worktree | dirty 상태와 장시간 실험 로그가 official checkout을 막지 않게 함 |
+| backend 재학습, 평가 비교, 모델 파일 실험 | 별도 worktree | 모델 산출물과 평가 로그가 main 정리를 방해하지 않게 함 |
+| Chrome/extension E2E 검증 | 별도 worktree 또는 verification worktree | 브라우저/서버 상태와 extension 빌드 상태를 분리함 |
+| docs/evidence/Notion 정리 | official checkout | 공식 보고 자료와 ledger 원본을 한 곳에 유지함 |
+
+권장 경로는 `/Users/giminu0930/Documents/000 Project/20_도구실험/worktrees/` 아래입니다.
+같은 브랜치는 두 worktree에서 동시에 checkout하지 않습니다.
+worktree 실험이 끝나면 PR에 올릴 의미 단위만 남기고, ledger에는 실패/개선/검증/결정 단위로 기록합니다.
+
+## 14. 심사 대응 우선순위
+
+2026년 5월 14일 To-do-list는 최종 보고서/발표 자료에 직접 들어갈 증거 목록입니다.
+따라서 자동화나 개발 운영보다 아래 세 축을 먼저 채웁니다.
+
+| 축 | 우선 증거 | 평가 연결 |
+| --- | --- | --- |
+| 탐지 모델 | 재학습 전/후 성능, Accuracy/Precision/Recall/F1/FP/FN, category별 성능, clean-topic bias, FP/FN 대표 사례, score bucket, span detection | 기술성 |
+| 파서/추출기 | raw vs cleaned JSONL, UI 제거 규칙, 댓글 없음/다른 화면 감지, 중복 제거, 플랫폼별 오류, Android boundsInScreen | 기술성 |
+| 통합 흐름 | Chrome/Android E2E, cleaned 댓글 -> 정규화 -> 모델 판단 -> evidence span -> 최종 마스킹, demo 가능/어려운 기능 구분 | 완성도 |
+
+Notion board는 이 세 축의 상태판입니다.
+전체 이력은 repo ledger에 남기고, Notion에서는 발표/보고서에 들어갈 대표 항목과 아직 막힌 항목을 유지합니다.
