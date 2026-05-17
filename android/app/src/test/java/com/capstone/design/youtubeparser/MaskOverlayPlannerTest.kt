@@ -887,7 +887,7 @@ class MaskOverlayPlannerTest {
     }
 
     @Test
-    fun buildSpecs_keepsBoundedSemanticFallbackMasksTranslatable() {
+    fun buildSpecs_rejectsSemanticFallbackMasksUntilExactOcrIsAvailable() {
         val response = responseOf(
             resultOf(
                 offensive = true,
@@ -900,12 +900,7 @@ class MaskOverlayPlannerTest {
 
         val specs = AndroidMaskOverlayPlanner.buildSpecs(response, screenWidth = 1080, screenHeight = 2400)
 
-        assertEquals(1, specs.size)
-        assertEquals(54, specs.single().left)
-        assertEquals(588, specs.single().top)
-        assertEquals(233, specs.single().width)
-        assertEquals(56, specs.single().height)
-        assertTrue(specs.single().allowScrollTranslation)
+        assertTrue(specs.isEmpty())
     }
 
     @Test

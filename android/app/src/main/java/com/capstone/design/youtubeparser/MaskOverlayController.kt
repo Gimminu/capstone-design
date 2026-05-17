@@ -409,7 +409,6 @@ object AndroidMaskOverlayPlanner {
             value == YOUTUBE_TITLE_ACCESSIBILITY_AUTHOR_ID ||
             value == YOUTUBE_SHORTS_TITLE_ACCESSIBILITY_AUTHOR_ID ||
             isCommentAccessibilityAuthor(value) ||
-            isSemanticVisualAuthor(value) ||
             isPreciseVisualAuthor(value)
     }
 
@@ -478,12 +477,7 @@ object AndroidMaskOverlayPlanner {
         }
 
         if (isSemanticVisualAuthor(authorId)) {
-            return hasStableSemanticVisualGeometry(
-                spec = spec,
-                screenWidth = screenWidth,
-                areaRatio = areaRatio,
-                authorId = authorId
-            )
+            return false
         }
 
         if (isCompositeYoutubeAuthor(authorId)) {
