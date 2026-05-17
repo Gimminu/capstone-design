@@ -10,6 +10,12 @@ object YoutubeAnalysisTargetExtractor {
     private const val YOUTUBE_SEARCH_INPUT_MIN_WIDTH_PX = 96
     private const val YOUTUBE_SEARCH_INPUT_MAX_HEIGHT_PX = 128
     private const val COMPOSITE_TITLE_ESTIMATED_HEIGHT_PX = 56
+    private const val SHORTS_GRID_TITLE_TOP_RATIO = 0.66f
+    private const val SHORTS_GRID_MEDIUM_TITLE_TOP_RATIO = 0.22f
+    private const val SHORTS_GRID_MEDIUM_MAX_HEIGHT_PX = 720
+    private const val SHORTS_GRID_COMPACT_TITLE_TOP_RATIO = 0.46f
+    private const val SHORTS_GRID_COMPACT_MAX_HEIGHT_PX = 480
+    private const val PLAYLIST_TITLE_BOTTOM_INSET_PX = 102
     private const val VISUAL_RANGE_MIN_WIDTH_PX = 30
     private const val VISUAL_RANGE_HORIZONTAL_PADDING_PX = 6
     private const val VISUAL_RANGE_LINE_HEIGHT_PX = 34
@@ -128,7 +134,8 @@ object YoutubeAnalysisTargetExtractor {
                 right = node.right,
                 bottom = node.bottom
             ),
-            authorId = stableYoutubeAccessibilityAuthor(node, text, width, height, className)
+            authorId = stableYoutubeAccessibilityAuthor(node, text, width, height, className),
+            charBoxes = node.charBoxes
         ).withVisibility(visibility)
     }
 
@@ -153,7 +160,8 @@ object YoutubeAnalysisTargetExtractor {
                 right = node.right,
                 bottom = node.bottom
             ),
-            authorId = YOUTUBE_USER_INPUT_AUTHOR_ID
+            authorId = YOUTUBE_USER_INPUT_AUTHOR_ID,
+            charBoxes = node.charBoxes
         )
     }
 
@@ -332,17 +340,22 @@ object YoutubeAnalysisTargetExtractor {
         if (title.length !in 2..180) return null
         if (!VisualTextOcrCandidateFilter.shouldAnalyze(title)) return null
 
-        val shortsTitle = isShortsGridCardDescription(description, width, height) &&
-            startsWithAnalyzableRange(title)
-        val titleBounds = if (shortsTitle) {
-            estimateShortsGridTitleBounds(node, width, height)
-        } else {
-            estimateCompositeYoutubeTitleBounds(node, width, height)
+        val shortsTitle = isShortsGridCardDescription(description, width, height)
+        val playlistTitle = isPlaylistCardDescription(description, width, height)
+        val titleBounds = when {
+            shortsTitle -> estimateShortsGridTitleBounds(node, width, height)
+            playlistTitle -> estimatePlaylistTitleBounds(node, width, height)
+            else -> estimateCompositeYoutubeTitleBounds(node, width, height)
         } ?: return null
         return ParsedComment(
             commentText = title,
             boundsInScreen = titleBounds,
-            authorId = if (shortsTitle) YOUTUBE_SHORTS_TITLE_AUTHOR_ID else COMPOSITE_DESCRIPTION_AUTHOR_ID
+            authorId = when {
+                shortsTitle -> YOUTUBE_SHORTS_TITLE_AUTHOR_ID
+                playlistTitle -> YOUTUBE_STABLE_TITLE_AUTHOR_ID
+                else -> COMPOSITE_DESCRIPTION_AUTHOR_ID
+            },
+            charBoxes = node.charBoxes
         )
     }
 
@@ -350,11 +363,13 @@ object YoutubeAnalysisTargetExtractor {
         val normalized = description.replace(Regex("\\s+"), " ").trim()
         if (normalized.isBlank()) return null
 
-        metadataTitlePatterns.firstNotNullOfOrNull { pattern ->
+        val metadataCandidates = metadataTitlePatterns.mapNotNull { pattern ->
             pattern.find(normalized)?.groupValues?.getOrNull(1)?.trim(' ', '-', ',')
-        }?.let { title ->
-            return title.takeIf { it.isNotBlank() }
         }
+        metadataCandidates.firstOrNull { title ->
+            title.isNotBlank() && VisualTextOcrCandidateFilter.shouldAnalyze(title)
+        }?.let { return it }
+        metadataCandidates.firstOrNull { it.isNotBlank() }?.let { return it }
 
         val cutIndexes = listOfNotNull(
             Regex("""\s+-\s+\d+\s+(?:second|seconds|minute|minutes|hour|hours)(?:,\s*\d+\s+(?:second|seconds|minute|minutes|hour|hours))?\s+-""")
@@ -402,9 +417,36 @@ object YoutubeAnalysisTargetExtractor {
         width: Int,
         height: Int
     ): BoundsRect? {
-        val top = node.top + (height * 0.66f).toInt()
+        val titleTopRatio = if (height <= SHORTS_GRID_COMPACT_MAX_HEIGHT_PX) {
+            SHORTS_GRID_COMPACT_TITLE_TOP_RATIO
+        } else if (height <= SHORTS_GRID_MEDIUM_MAX_HEIGHT_PX) {
+            SHORTS_GRID_MEDIUM_TITLE_TOP_RATIO
+        } else {
+            SHORTS_GRID_TITLE_TOP_RATIO
+        }
+        val top = node.top + (height * titleTopRatio).toInt()
         val left = node.left
         val right = node.right - (width * 0.04f).toInt()
+        val bottom = minOf(node.bottom, top + COMPOSITE_TITLE_ESTIMATED_HEIGHT_PX)
+
+        if (right - left < 80 || bottom - top < 24) return null
+
+        return BoundsRect(
+            left = left,
+            top = top,
+            right = right,
+            bottom = bottom
+        )
+    }
+
+    private fun estimatePlaylistTitleBounds(
+        node: ParsedTextNode,
+        width: Int,
+        height: Int
+    ): BoundsRect? {
+        val top = maxOf(node.top, node.bottom - PLAYLIST_TITLE_BOTTOM_INSET_PX)
+        val left = node.left + (width * 0.14f).toInt()
+        val right = node.right - (width * 0.10f).toInt()
         val bottom = minOf(node.bottom, top + COMPOSITE_TITLE_ESTIMATED_HEIGHT_PX)
 
         if (right - left < 80 || bottom - top < 24) return null
@@ -518,10 +560,12 @@ object YoutubeAnalysisTargetExtractor {
             height >= 260
     }
 
-    private fun startsWithAnalyzableRange(title: String): Boolean {
-        return VisualTextOcrCandidateFilter.findAnalysisRanges(title).any { range ->
-            range.start <= 2
-        }
+    private fun isPlaylistCardDescription(description: String, width: Int, height: Int): Boolean {
+        val lower = description.lowercase()
+        return lower.startsWith("playlist - ") &&
+            Regex("""\s+-\s+\d+\s+videos?\b""", RegexOption.IGNORE_CASE).containsMatchIn(description) &&
+            width >= 900 &&
+            height >= 260
     }
 
     private fun looksLikeRelativeTime(text: String): Boolean {
@@ -537,6 +581,7 @@ object YoutubeAnalysisTargetExtractor {
     }
 
     private val metadataTitlePatterns = listOf(
+        Regex("""^Playlist\s+-\s+(.+?)\s+-\s+[^-]{1,80}\s+-\s+\d+\s+videos?\b""", RegexOption.IGNORE_CASE),
         Regex("""^(.+?),\s*[^,]{1,80},\s*[\d.]+\s*(?:[kmb]|thousand|million|billion)?\s+views\b""", RegexOption.IGNORE_CASE),
         Regex("""^(.+?),\s*[\d.]+\s*(?:[kmb]|thousand|million|billion)?\s+views\b""", RegexOption.IGNORE_CASE),
         Regex("""^(.+?)\s*[·•]\s*[^·•]{1,80}\s*[·•]\s*[\d.]+\s*(?:[kmb]|thousand|million|billion)?\s+views\b""", RegexOption.IGNORE_CASE),

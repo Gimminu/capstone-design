@@ -44,6 +44,7 @@ object ScreenTextCandidateExtractor {
     private const val YOUTUBE_USER_INPUT_AUTHOR_ID = "android-accessibility:youtube_user_input"
     private const val ACCESSIBILITY_COMMENT_PREFIX = "android-accessibility-comment:"
     private const val ACCESSIBILITY_LOOKAHEAD_PREFIX = "android-accessibility-lookahead:"
+    private const val ACCESSIBILITY_CHAR_RANGE_PREFIX = "android-accessibility-char-range:"
 
     fun extractCandidates(
         packageName: String,
@@ -58,10 +59,13 @@ object ScreenTextCandidateExtractor {
                 screenHeight = screenHeight
             )
                 .map { it.toCandidate(packageName, sceneRevision) }
+                .withExactCharRangeCandidates()
             INSTAGRAM_PACKAGE -> InstagramCommentExtractor.extractComments(nodes)
                 .map { it.toCandidate(packageName, sceneRevision) }
+                .withExactCharRangeCandidates()
             TIKTOK_PACKAGE, TIKTOK_ALT_PACKAGE -> TiktokCommentExtractor.extractComments(nodes)
                 .map { it.toCandidate(packageName, sceneRevision) }
+                .withExactCharRangeCandidates()
             else -> extractGenericCandidates(packageName, nodes, sceneRevision)
         }
     }
@@ -97,6 +101,7 @@ object ScreenTextCandidateExtractor {
             rawText = commentText,
             normalizedVariants = normalizedVariantsFor(commentText),
             screenRect = boundsInScreen,
+            charBoxes = charBoxes,
             sceneRevision = sceneRevision,
             backendSourceId = sourceId
         )
@@ -108,6 +113,7 @@ object ScreenTextCandidateExtractor {
             value.startsWith("youtube-visual-range:") ||
             value == "youtube-composite-description" ||
             value.startsWith(ACCESSIBILITY_LOOKAHEAD_PREFIX) ||
+            value.startsWith(ACCESSIBILITY_COMMENT_PREFIX) ||
             value.startsWith("android-accessibility:")
         ) {
             return value
@@ -154,6 +160,12 @@ object ScreenTextCandidateExtractor {
         return selectGenericCandidates(candidates)
     }
 
+    private fun List<ScreenTextCandidate>.withExactCharRangeCandidates(): List<ScreenTextCandidate> {
+        return flatMap { candidate ->
+            listOf(candidate) + supplementalExactCharRangeCandidates(candidate)
+        }
+    }
+
     private fun toGenericCandidate(
         packageName: String,
         node: ParsedTextNode,
@@ -187,19 +199,23 @@ object ScreenTextCandidateExtractor {
             rawText = text,
             normalizedVariants = normalizedVariantsFor(text),
             screenRect = bounds,
+            charBoxes = node.charBoxes,
             sceneRevision = sceneRevision,
             backendSourceId = backendSourceId
         )
     }
 
     private fun supplementalKeyboardRangeCandidates(base: ScreenTextCandidate): List<ScreenTextCandidate> {
-        if (!canBuildSupplementalRangeCandidates(base)) return emptyList()
-
         val ranges = VisualTextOcrCandidateFilter.findAnalysisRanges(base.rawText)
             .filter { range -> shouldAddKeyboardRangeCandidate(range) }
         if (ranges.isEmpty()) return emptyList()
 
         return ranges.mapNotNull { range ->
+            supplementalExactCharRangeCandidate(base, range)?.let { exactCandidate ->
+                return@mapNotNull exactCandidate
+            }
+            if (!canBuildEstimatedSupplementalRangeCandidates(base)) return@mapNotNull null
+
             val rangeBounds = estimateRangeBounds(
                 bounds = base.screenRect,
                 textLength = base.rawText.length,
@@ -222,6 +238,40 @@ object ScreenTextCandidateExtractor {
         }
     }
 
+    private fun supplementalExactCharRangeCandidates(base: ScreenTextCandidate): List<ScreenTextCandidate> {
+        val ranges = VisualTextOcrCandidateFilter.findAnalysisRanges(base.rawText)
+            .filter { range -> shouldAddKeyboardRangeCandidate(range) }
+        if (ranges.isEmpty()) return emptyList()
+
+        return ranges.mapNotNull { range ->
+            supplementalExactCharRangeCandidate(base, range)
+        }
+    }
+
+    private fun supplementalExactCharRangeCandidate(
+        base: ScreenTextCandidate,
+        range: VisualTextOcrCandidateFilter.CandidateRange
+    ): ScreenTextCandidate? {
+        val bounds = exactCharRangeBounds(
+            text = base.rawText,
+            charBoxes = base.charBoxes.orEmpty(),
+            startCharIndex = range.start,
+            endCharIndex = range.end
+        ) ?: return null
+
+        return ScreenTextCandidate(
+            id = stableId(base.packageName, range.analysisText, bounds),
+            packageName = base.packageName,
+            source = CandidateSource.ACCESSIBILITY_TEXT,
+            role = base.role,
+            rawText = range.analysisText,
+            normalizedVariants = listOf(range.analysisText, range.visualText).distinct(),
+            screenRect = bounds,
+            sceneRevision = base.sceneRevision,
+            backendSourceId = "$ACCESSIBILITY_CHAR_RANGE_PREFIX${range.visualText}"
+        )
+    }
+
     private fun shouldAddKeyboardRangeCandidate(range: VisualTextOcrCandidateFilter.CandidateRange): Boolean {
         val visual = range.visualText.trim()
         if (visual.isBlank()) return false
@@ -233,7 +283,7 @@ object ScreenTextCandidateExtractor {
         return !range.analysisText.equals(visual, ignoreCase = true)
     }
 
-    private fun canBuildSupplementalRangeCandidates(base: ScreenTextCandidate): Boolean {
+    private fun canBuildEstimatedSupplementalRangeCandidates(base: ScreenTextCandidate): Boolean {
         if (isBrowserTopControlCandidate(base.packageName, base.screenRect, base.role, base.rawText)) {
             return false
         }
@@ -260,6 +310,36 @@ object ScreenTextCandidateExtractor {
         }
 
         return true
+    }
+
+    private fun exactCharRangeBounds(
+        text: String,
+        charBoxes: List<CharBox>,
+        startCharIndex: Int,
+        endCharIndex: Int
+    ): BoundsRect? {
+        if (charBoxes.isEmpty()) return null
+        val codePointStart = text.codePointCount(0, startCharIndex.coerceIn(0, text.length))
+        val codePointEnd = text.codePointCount(0, endCharIndex.coerceIn(startCharIndex, text.length))
+        if (codePointEnd <= codePointStart) return null
+
+        val boxes = charBoxes.filter { box ->
+            box.end > codePointStart && box.start < codePointEnd
+        }
+        if (boxes.isEmpty()) return null
+
+        val left = boxes.minOf { it.boundsInScreen.left }
+        val top = boxes.minOf { it.boundsInScreen.top }
+        val right = boxes.maxOf { it.boundsInScreen.right }
+        val bottom = boxes.maxOf { it.boundsInScreen.bottom }
+        if (right - left < MIN_WIDTH_PX || bottom - top < MIN_HEIGHT_PX) return null
+
+        return BoundsRect(
+            left = (left - RANGE_HORIZONTAL_PADDING_PX).coerceAtLeast(0),
+            top = top,
+            right = right + RANGE_HORIZONTAL_PADDING_PX,
+            bottom = bottom
+        )
     }
 
     private fun isBrowserTopControlCandidate(

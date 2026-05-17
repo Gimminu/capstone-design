@@ -39,6 +39,7 @@ internal object VisualTextSemanticFallbackPlanner {
         screenHeight: Int
     ): List<ParsedComment> {
         if (!isFullWidthThumbnailSemanticRoi(roi, screenWidth, screenHeight)) return emptyList()
+        if (isPlaylistCompositeDescription(roi.sourceText)) return emptyList()
 
         val range = VisualTextOcrCandidateFilter.findAnalysisRanges(roi.sourceText)
             .firstOrNull { candidateRange ->
@@ -78,6 +79,13 @@ internal object VisualTextSemanticFallbackPlanner {
         return bounds.top < (screenHeight * THUMBNAIL_TERM_TOP_REGION_RATIO).roundToInt() &&
             width >= (screenWidth * THUMBNAIL_TERM_MIN_WIDTH_RATIO).roundToInt() &&
             height >= THUMBNAIL_TERM_MIN_ROI_HEIGHT_PX
+    }
+
+    private fun isPlaylistCompositeDescription(sourceText: String): Boolean {
+        val normalized = sourceText.replace(Regex("\\s+"), " ").trim()
+        val lower = normalized.lowercase()
+        return lower.startsWith("playlist - ") ||
+            Regex("""(?:^|\s)-\s*\d+\s+videos?\b""", RegexOption.IGNORE_CASE).containsMatchIn(normalized)
     }
 
     private fun isLikelyHeroTitleTextHit(

@@ -1,6 +1,8 @@
 package com.capstone.design.youtubeparser
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 
@@ -151,6 +153,80 @@ class AndroidAnalysisClientTest {
         )
 
         assertEquals("What is 'Tlqkf'?_Contemporary Korean Slang", matched.single()?.original)
+    }
+
+    @Test
+    fun cacheKeysForComment_addsTextOnlyAliasForYoutubeVisualOcrCandidate() {
+        val candidate = ParsedComment(
+            commentText = "Tlqkf",
+            boundsInScreen = BoundsRect(left = 40, top = 320, right = 180, bottom = 370),
+            authorId = "ocr:youtube-composite-card:40,320,180,370:Tlqkf"
+        )
+
+        val keys = AndroidAnalysisClient.cacheKeysForComment(candidate, sensitivity = 2)
+
+        assertEquals(2, keys.size)
+        assertTrue(keys.any { it.contains("ocr:youtube-composite-card") })
+        assertTrue(keys.contains("2::tlqkf"))
+    }
+
+    @Test
+    fun cacheKeysForComment_addsTextOnlyAliasForYoutubeSemanticFallbackCandidate() {
+        val candidate = ParsedComment(
+            commentText = "tlqkf",
+            boundsInScreen = BoundsRect(left = 340, top = 1240, right = 700, bottom = 1320),
+            authorId = "ocr:youtube-semantic-card:0,972,1080,1656:Tlqkf"
+        )
+
+        val keys = AndroidAnalysisClient.cacheKeysForComment(candidate, sensitivity = 2)
+
+        assertEquals(2, keys.size)
+        assertTrue(keys.any { it.contains("ocr:youtube-semantic-card") })
+        assertTrue(keys.contains("2::tlqkf"))
+    }
+
+    @Test
+    fun cacheKeysForComment_addsTextOnlyAliasForAccessibilityCharacterRangeCandidate() {
+        val candidate = ParsedComment(
+            commentText = "tlqkf",
+            boundsInScreen = BoundsRect(left = 118, top = 520, right = 262, bottom = 558),
+            authorId = "android-accessibility-char-range:Tlqkf"
+        )
+
+        val keys = AndroidAnalysisClient.cacheKeysForComment(candidate, sensitivity = 2)
+
+        assertEquals(2, keys.size)
+        assertTrue(keys.any { it.contains("android-accessibility-char-range") })
+        assertTrue(keys.contains("2::tlqkf"))
+    }
+
+    @Test
+    fun cacheKeysForComment_reusesLookaheadYoutubeTitleUnderVisibleSourceAndTextAlias() {
+        val candidate = ParsedComment(
+            commentText = "What is 'Tlqkf'?_Contemporary Korean Slang",
+            boundsInScreen = BoundsRect(left = 80, top = 1320, right = 680, bottom = 1400),
+            authorId = "android-accessibility-lookahead:android-accessibility:youtube_title"
+        )
+
+        val keys = AndroidAnalysisClient.cacheKeysForComment(candidate, sensitivity = 3)
+
+        assertEquals(2, keys.size)
+        assertTrue(keys.contains("3::android-accessibility:youtube_title::what is 'tlqkf'?_contemporary korean slang"))
+        assertTrue(keys.contains("3::what is 'tlqkf'?_contemporary korean slang"))
+        assertFalse(keys.any { it.contains("lookahead") })
+    }
+
+    @Test
+    fun cacheKeysForComment_doesNotAddTextOnlyAliasForBrowserAnalysisOnlyCandidate() {
+        val candidate = ParsedComment(
+            commentText = "Tlqkf meaning",
+            boundsInScreen = BoundsRect(left = 80, top = 520, right = 820, bottom = 600),
+            authorId = "android-accessibility-browser:title"
+        )
+
+        val keys = AndroidAnalysisClient.cacheKeysForComment(candidate, sensitivity = 2)
+
+        assertEquals(listOf("2::android-accessibility-browser:title::tlqkf meaning"), keys)
     }
 
     @Test

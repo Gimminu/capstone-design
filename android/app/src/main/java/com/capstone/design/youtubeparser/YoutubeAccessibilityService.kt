@@ -5,7 +5,9 @@ import android.annotation.SuppressLint
 import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Rect
+import android.graphics.RectF
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -17,6 +19,8 @@ import android.view.accessibility.AccessibilityWindowInfo
 import androidx.annotation.RequiresApi
 import java.util.concurrent.Executors
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 
@@ -50,6 +54,9 @@ class YoutubeAccessibilityService : AccessibilityService() {
         private const val TOP_CONTROL_OCR_EXCLUSION_MAX_PX = 220
         private const val TOP_CONTROL_OCR_EXCLUSION_RATIO = 0.12f
         private const val CACHE_PROMOTION_THROTTLE_MS = 80L
+        private const val MAX_CHARACTER_LOCATION_TEXT_LENGTH = 320
+        private val PRECISE_YOUTUBE_VISUAL_SOURCES = setOf("youtube-composite-card", "youtube-visible-band")
+        private const val YOUTUBE_SEMANTIC_FALLBACK_SOURCE = "youtube-semantic-card"
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -79,6 +86,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
     @Volatile private var visualAnalysisInFlight = false
     @Volatile private var visualAnalysisRunId = 0L
     @Volatile private var lastVisualSupplement: VisualSupplementCache? = null
+    @Volatile private var lastVisualAnalysisStartedAtMs = 0L
     private var lastScreenshotRequestAtMs = 0L
     private var preservedRecentVisualMiss = false
     private var preservedRecentAnalysisFailure = false
@@ -190,9 +198,19 @@ class YoutubeAccessibilityService : AccessibilityService() {
                     event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
                         hasActiveMasks &&
                         !overlaySelfContentChange
+                val elapsedSinceVisualAnalysisStartMs =
+                    SystemClock.uptimeMillis() - lastVisualAnalysisStartedAtMs
+                val deferVisualInvalidationForContentChange =
+                    MaskOverlayEventPolicy.shouldDeferVisualInvalidationForContentChange(
+                        eventType = event.eventType,
+                        visualAnalysisInFlight = visualAnalysisInFlight,
+                        elapsedSinceVisualAnalysisStartMs = elapsedSinceVisualAnalysisStartMs
+                    )
                 val visualSceneChanged = shouldInvalidateVisualScene(
                     event.eventType,
-                    contentChangedWithActiveMask || overlaySelfContentChange
+                    contentChangedWithActiveMask || overlaySelfContentChange,
+                    visualAnalysisInFlight,
+                    elapsedSinceVisualAnalysisStartMs
                 )
                 if (contentChangedWithActiveMask) {
                     lastOverlayContentChangeAtMs = SystemClock.uptimeMillis()
@@ -214,16 +232,11 @@ class YoutubeAccessibilityService : AccessibilityService() {
                         )
                     ) {
                         Log.d(TAG, "hide mask overlay until scroll recapture: unresolved delta")
-                        hideMaskOverlayViewsUntilRecapture()
-                        markOverlayRevisionStale()
+                        clearMaskOverlay()
                         scheduleDeferredFollowUpParse()
                     } else if (scrollTranslation.shouldHideUntilRecapture && hasActiveMasks) {
-                        Log.d(
-                            TAG,
-                            "hide mask overlay until scroll recapture status=${scrollTranslation.status}"
-                        )
-                        hideMaskOverlayViewsUntilRecapture()
-                        markOverlayRevisionStale()
+                        Log.d(TAG, "hide mask overlay until scroll recapture status=${scrollTranslation.status}")
+                        clearMaskOverlay()
                         scheduleDeferredFollowUpParse(waitForScrollStabilization = true)
                     } else {
                         markOverlayRevisionStale()
@@ -241,17 +254,20 @@ class YoutubeAccessibilityService : AccessibilityService() {
                 ) {
                     Log.d(TAG, "preserve mask overlay during scroll content change")
                     markOverlayRevisionStale()
-                    markVisualSceneChanged(event.eventType)
+                    if (!deferVisualInvalidationForContentChange) {
+                        markVisualSceneChanged(event.eventType)
+                    }
                 } else if (
                     event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED &&
                     maskOverlayController.hasActiveMasks()
                 ) {
                     clearMaskOverlay()
                 } else if (contentChangedWithActiveMask) {
-                    Log.d(TAG, "hide mask overlay until content recapture")
-                    hideMaskOverlayViewsUntilRecapture()
+                    Log.d(TAG, "preserve mask overlay until content recapture")
                     markOverlayRevisionStale()
-                    markVisualSceneChanged(event.eventType)
+                    if (!deferVisualInvalidationForContentChange) {
+                        markVisualSceneChanged(event.eventType)
+                    }
                     scheduleDeferredFollowUpParse(waitForScrollStabilization = true)
                 } else if (shouldClearOverlayImmediately(event.eventType)) {
                     clearMaskOverlay()
@@ -373,6 +389,10 @@ class YoutubeAccessibilityService : AccessibilityService() {
         val lookaheadCandidateCount = screenCandidates.count { candidate ->
             candidate.backendSourceId.orEmpty().startsWith("android-accessibility-lookahead:")
         }
+        val charLocationNodeCount = nodes.count { node -> node.charBoxes.isNotEmpty() }
+        val charRangeCandidateCount = screenCandidates.count { candidate ->
+            candidate.backendSourceId.orEmpty().startsWith("android-accessibility-char-range:")
+        }
         val candidateRouteSamples = CandidateRoutingPolicy.summarize(screenCandidates)
         val comments = screenCandidates.map { it.toParsedComment() }
 
@@ -381,6 +401,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
                 "package=$currentPackage parsed analysis target count=${comments.size} " +
                 "screenCandidates=${screenCandidates.size} " +
                 "lookaheadCandidates=$lookaheadCandidateCount " +
+                "charLocationNodes=$charLocationNodeCount charRangeCandidates=$charRangeCandidateCount " +
                 "visualRoiCandidates=${visualRoiPlan.candidateCount} visualRois=${visualRoiPlan.rois.size} " +
                 "routes=${candidateRouteSamples.joinToString(";")}"
         )
@@ -498,7 +519,8 @@ class YoutubeAccessibilityService : AccessibilityService() {
                     snapshotOverlayRevision = snapshotOverlayRevision,
                     visualRoiPlan = visualRoiPlan,
                     isProvisionalAccessibilityMask = reusableVisualResponse == null,
-                    allowDuringScrollStabilization = true
+                    allowDuringScrollStabilization = true,
+                    preserveExistingPreciseVisualMasks = true
                 )
             } else {
                 Log.d(TAG, "skip duplicate snapshot without renderable masks")
@@ -542,6 +564,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
             lastUploadAt = now
         }
         val snapshotOverlayRevision = overlayRevision
+        val snapshotVisualSceneRevision = visualSceneRevision
         renderProvisionalAccessibilityMaskOverlay(
             packageName = currentPackage,
             screenCandidates = screenCandidates,
@@ -550,6 +573,13 @@ class YoutubeAccessibilityService : AccessibilityService() {
             snapshotOverlayRevision = snapshotOverlayRevision,
             timestamp = now
         )
+        val earlyVisualTextAnalysisStarted =
+            currentPackage == YOUTUBE_PACKAGE &&
+                startVisualTextAnalysis(
+                    packageName = currentPackage,
+                    visualRoiPlan = visualRoiPlan,
+                    clearExistingOverlay = false
+                )
         analysisInFlight = true
 
         Thread {
@@ -610,7 +640,8 @@ class YoutubeAccessibilityService : AccessibilityService() {
                         currentPackage = currentPackage,
                         analysis = analysis,
                         snapshotOverlayRevision = snapshotOverlayRevision,
-                        visualRoiPlan = visualRoiPlan
+                        visualRoiPlan = visualRoiPlan,
+                        preserveExistingPreciseVisualMasks = visualRoiPlan.hasRenderableVisualRois()
                     )
                 }
                 AnalysisDiagnosticsStore.saveAttempt(applicationContext, analysis)
@@ -620,12 +651,21 @@ class YoutubeAccessibilityService : AccessibilityService() {
                 }
 
                 val shouldStartVisualSupplement =
-                    shouldRunVisualTextSupplement(currentPackage, analysis, visualRoiPlan)
+                    !earlyVisualTextAnalysisStarted &&
+                        shouldRunVisualTextSupplement(currentPackage, analysis, visualRoiPlan)
 
                 // Masking must not be blocked by the optional upload channel.
                 releaseAnalysisGate()
                 if (shouldStartVisualSupplement) {
                     handler.post {
+                        if (snapshotVisualSceneRevision != visualSceneRevision) {
+                            Log.d(
+                                TAG,
+                                "skip visual OCR start: stale base scene " +
+                                    "snapshot=$snapshotVisualSceneRevision current=$visualSceneRevision"
+                            )
+                            return@post
+                        }
                         startVisualTextAnalysis(
                             packageName = currentPackage,
                             visualRoiPlan = visualRoiPlan,
@@ -696,7 +736,8 @@ class YoutubeAccessibilityService : AccessibilityService() {
             snapshotOverlayRevision = snapshotOverlayRevision,
             visualRoiPlan = visualRoiPlan,
             isProvisionalAccessibilityMask = true,
-            allowDuringScrollStabilization = true
+            allowDuringScrollStabilization = true,
+            preserveExistingPreciseVisualMasks = true
         )
     }
 
@@ -707,7 +748,8 @@ class YoutubeAccessibilityService : AccessibilityService() {
         visualRoiPlan: VisualTextRoiPlan? = null,
         isProvisionalVisualMask: Boolean = false,
         isProvisionalAccessibilityMask: Boolean = false,
-        allowDuringScrollStabilization: Boolean = false
+        allowDuringScrollStabilization: Boolean = false,
+        preserveExistingPreciseVisualMasks: Boolean = false
     ) {
         if (currentPackage != lastObservedPackage) {
             Log.d(
@@ -776,7 +818,8 @@ class YoutubeAccessibilityService : AccessibilityService() {
             )
             maskOverlayController.render(
                 response = analysis.response,
-                preserveExistingIfEmpty = preserveExistingIfEmpty
+                preserveExistingIfEmpty = preserveExistingIfEmpty,
+                preserveExistingPreciseVisualMasks = preserveExistingPreciseVisualMasks
             )
             preservedRecentVisualMiss = false
             preservedRecentAnalysisFailure = false
@@ -800,13 +843,12 @@ class YoutubeAccessibilityService : AccessibilityService() {
                 !MaskOverlayEventPolicy.shouldClearAfterAnalysisFailure(
                     hasActiveMasks = maskOverlayController.hasActiveMasks(),
                     hasRenderableVisualRois = visualRoiPlan?.hasRenderableVisualRois() == true,
-                    hasPreservedRecentAnalysisFailure = preservedRecentAnalysisFailure
+                    hasProvisionalMasks = provisionalVisualMaskActive || provisionalAccessibilityMaskActive,
+                    visualAnalysisInFlight = visualAnalysisInFlight
                 )
             ) {
-                Log.d(TAG, "preserve mask overlay after transient analysis failure")
+                Log.d(TAG, "preserve mask overlay after analysis failure")
                 preservedRecentAnalysisFailure = true
-                markOverlayRevisionStale()
-                scheduleDeferredFollowUpParse(waitForScrollStabilization = true)
                 return
             }
             Log.d(
@@ -829,12 +871,6 @@ class YoutubeAccessibilityService : AccessibilityService() {
         resetAbsoluteScrollPosition()
     }
 
-    private fun hideMaskOverlayViewsUntilRecapture() {
-        provisionalVisualMaskActive = false
-        provisionalAccessibilityMaskActive = false
-        maskOverlayController.clear()
-    }
-
     private fun markOverlayRevisionStale() {
         overlayRevision += 1
         lastSnapshotSignature = null
@@ -849,8 +885,20 @@ class YoutubeAccessibilityService : AccessibilityService() {
 
     private fun shouldInvalidateVisualScene(
         eventType: Int,
-        contentChangedWithActiveMask: Boolean
+        contentChangedWithActiveMask: Boolean,
+        visualAnalysisInFlight: Boolean,
+        elapsedSinceVisualAnalysisStartMs: Long
     ): Boolean {
+        if (
+            MaskOverlayEventPolicy.shouldDeferVisualInvalidationForContentChange(
+                eventType = eventType,
+                visualAnalysisInFlight = visualAnalysisInFlight,
+                elapsedSinceVisualAnalysisStartMs = elapsedSinceVisualAnalysisStartMs
+            )
+        ) {
+            return false
+        }
+
         return when (eventType) {
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> !contentChangedWithActiveMask
             else -> true
@@ -1080,7 +1128,8 @@ class YoutubeAccessibilityService : AccessibilityService() {
             analysis = analysis,
             snapshotOverlayRevision = overlayRevision,
             visualRoiPlan = buildVisualTextRoiPlan(nodes),
-            allowDuringScrollStabilization = true
+            allowDuringScrollStabilization = true,
+            preserveExistingPreciseVisualMasks = true
         )
     }
 
@@ -1221,6 +1270,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
         val visualRunId = visualAnalysisRunId + 1L
         visualAnalysisRunId = visualRunId
         visualAnalysisInFlight = true
+        lastVisualAnalysisStartedAtMs = SystemClock.uptimeMillis()
         val metrics = resources.displayMetrics
         val semanticFallbackCandidates = VisualTextSemanticFallbackPlanner.selectCandidates(
             visualRoiPlan = visualRoiPlan,
@@ -1912,11 +1962,34 @@ class YoutubeAccessibilityService : AccessibilityService() {
     }
 
     private fun isSameVisualCandidate(left: ParsedComment, right: ParsedComment): Boolean {
+        if (isSameVisualCandidateWithinRoi(left, right)) return true
+
         val overlapRatio = boundsOverlapRatio(left.boundsInScreen, right.boundsInScreen)
         return (
             normalizeAnalysisTextKey(left.commentText) == normalizeAnalysisTextKey(right.commentText) &&
                 overlapRatio >= VISUAL_DUPLICATE_OVERLAP_RATIO
             ) || overlapRatio >= VISUAL_GEOMETRY_DUPLICATE_OVERLAP_RATIO
+    }
+
+    private fun isSameVisualCandidateWithinRoi(left: ParsedComment, right: ParsedComment): Boolean {
+        val leftMetadata = left.visualOcrMetadata() ?: return false
+        val rightMetadata = right.visualOcrMetadata() ?: return false
+        val leftRoi = leftMetadata.roiBoundsInScreen ?: return false
+        val rightRoi = rightMetadata.roiBoundsInScreen ?: return false
+        if (leftRoi != rightRoi) return false
+
+        val leftSource = leftMetadata.source
+        val rightSource = rightMetadata.source
+        val hasPrecise = leftSource in PRECISE_YOUTUBE_VISUAL_SOURCES ||
+            rightSource in PRECISE_YOUTUBE_VISUAL_SOURCES
+        val hasSemanticFallback = leftSource == YOUTUBE_SEMANTIC_FALLBACK_SOURCE ||
+            rightSource == YOUTUBE_SEMANTIC_FALLBACK_SOURCE
+        if (!hasPrecise || !hasSemanticFallback) return false
+
+        val leftKeys = analysisTextKeys(left.commentText)
+        if (leftKeys.isEmpty()) return false
+        val rightKeys = analysisTextKeys(right.commentText)
+        return rightKeys.any { key -> key in leftKeys }
     }
 
     private fun boundsOverlapRatio(left: BoundsRect, right: BoundsRect): Float {
@@ -2228,8 +2301,79 @@ class YoutubeAccessibilityService : AccessibilityService() {
             right = rect.right,
             bottom = rect.bottom,
             approxTop = rect.top,
-            isVisibleToUser = node.isVisibleToUser
+            isVisibleToUser = node.isVisibleToUser,
+            charBoxes = requestTextCharacterBoxes(node = node, text = text, displayText = value)
         )
+    }
+
+    private fun requestTextCharacterBoxes(
+        node: AccessibilityNodeInfo,
+        text: String?,
+        displayText: String
+    ): List<CharBox> {
+        val rawText = text ?: return emptyList()
+        if (rawText != displayText) return emptyList()
+        if (rawText.isBlank() || rawText.length > MAX_CHARACTER_LOCATION_TEXT_LENGTH) return emptyList()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return emptyList()
+
+        val extraData = try {
+            node.availableExtraData
+        } catch (_: RuntimeException) {
+            emptyList()
+        }
+        if (!extraData.contains(AccessibilityNodeInfo.EXTRA_DATA_TEXT_CHARACTER_LOCATION_KEY)) {
+            return emptyList()
+        }
+
+        val args = Bundle().apply {
+            putInt(AccessibilityNodeInfo.EXTRA_DATA_TEXT_CHARACTER_LOCATION_ARG_START_INDEX, 0)
+            putInt(AccessibilityNodeInfo.EXTRA_DATA_TEXT_CHARACTER_LOCATION_ARG_LENGTH, rawText.length)
+        }
+        val refreshed = try {
+            node.refreshWithExtraData(
+                AccessibilityNodeInfo.EXTRA_DATA_TEXT_CHARACTER_LOCATION_KEY,
+                args
+            )
+        } catch (_: RuntimeException) {
+            false
+        }
+        if (!refreshed) return emptyList()
+
+        val rects = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            node.extras.getParcelableArray(
+                AccessibilityNodeInfo.EXTRA_DATA_TEXT_CHARACTER_LOCATION_KEY,
+                RectF::class.java
+            ) ?: return emptyList()
+        } else {
+            @Suppress("DEPRECATION")
+            node.extras.getParcelableArray(AccessibilityNodeInfo.EXTRA_DATA_TEXT_CHARACTER_LOCATION_KEY)
+                ?: return emptyList()
+        }
+        return rects.mapIndexedNotNull { charIndex, value ->
+            val rect = value as? RectF ?: return@mapIndexedNotNull null
+            if (rect.width() <= 0f || rect.height() <= 0f) return@mapIndexedNotNull null
+            if (charIndex >= rawText.length || Character.isLowSurrogate(rawText[charIndex])) {
+                return@mapIndexedNotNull null
+            }
+
+            val codePoint = Character.codePointAt(rawText, charIndex)
+            val nextCharIndex = (charIndex + Character.charCount(codePoint)).coerceAtMost(rawText.length)
+            val start = rawText.codePointCount(0, charIndex)
+            val end = rawText.codePointCount(0, nextCharIndex)
+            if (end <= start) return@mapIndexedNotNull null
+
+            CharBox(
+                start = start,
+                end = end,
+                boundsInScreen = BoundsRect(
+                    left = floor(rect.left).toInt(),
+                    top = floor(rect.top).toInt(),
+                    right = ceil(rect.right).toInt(),
+                    bottom = ceil(rect.bottom).toInt()
+                ),
+                text = String(Character.toChars(codePoint))
+            )
+        }
     }
 
     private fun shouldKeepNode(

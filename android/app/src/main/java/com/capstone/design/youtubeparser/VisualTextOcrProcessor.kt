@@ -557,7 +557,7 @@ class VisualTextOcrProcessor {
 
     companion object {
         private const val TAG = "VisualTextOcrProcessor"
-        private const val MAX_ROIS_PER_PASS = 4
+        private const val MAX_ROIS_PER_PASS = 6
         private const val MAX_OCR_TEXT_CANDIDATES = 24
         private const val WARM_UP_BITMAP_SIZE_PX = 16
         private const val MIN_CROP_WIDTH_PX = 80
@@ -710,6 +710,7 @@ internal object VisualTextOcrCandidateFilter {
         pattern = listOf(
             "시\\s*발",
             "씨\\s*발",
+            "c\\s*발",
             "ㅅ\\s*ㅂ",
             "ㅆ\\s*ㅂ",
             "병\\s*신",
@@ -736,6 +737,10 @@ internal object VisualTextOcrCandidateFilter {
             "t\\s*[i1l]\\s*q\\s*k\\s*[fq]?",
             "t\\s*[i1l]\\s*q\\s*k\\s*q",
             "t\\s*[i1l]\\s*[a4gq]\\s*k\\s*[fq]?",
+            "t\\s*[i1l]\\s*k\\s*f",
+            "t\\s*[i1l]\\s*[o0]\\s*k\\s*[tf]",
+            "t\\s*[i1l]\\s*[o0]\\s*[i1l]\\s*k\\s*f",
+            "[i1l]{2}\\s*[a4o0]\\s*k\\s*t",
             "11\\s*k?t",
             "s\\s*s?\\s*i\\s*b\\s*a\\s*l",
             "qudtls",
@@ -843,7 +848,7 @@ internal object VisualTextOcrCandidateFilter {
             .map { char ->
                 when (char) {
                     '|', '!', '1', 'i' -> 'l'
-                    'a', 'g' -> 'q'
+                    'a', 'g', 'o', '0' -> 'q'
                     else -> char
                 }
             }
@@ -852,11 +857,15 @@ internal object VisualTextOcrCandidateFilter {
         return when {
             rawCompact.matches(Regex("""ss?ibal""")) -> "ssibal"
             compact.matches(Regex("""(?:t|l){1,2}l?qkf?""")) -> "tlqkf"
+            compact.matches(Regex("""tlkf""")) -> "tlqkf"
             compact.matches(Regex("""tlqk[fq]?""")) -> "tlqkf"
+            compact.matches(Regex("""tlqkt""")) -> "tlqkf"
+            compact.matches(Regex("""tlqlkf""")) -> "tlqkf"
             compact.matches(Regex("""tlqkq""")) -> "tlqkf"
             compact.matches(Regex("""tlqkf""")) -> "tlqkf"
             compact.matches(Regex("""tlq?kf""")) -> "tlqkf"
             compact.matches(Regex("""tlqkf.*""")) -> "tlqkf"
+            compact.matches(Regex("""llqk[ft]""")) -> "tlqkf"
             compact.matches(Regex("""llkt""")) -> "tlqkf"
             compact.matches(Regex("""ss?ibal""")) -> "ssibal"
             compact == "sibal" -> "ssibal"

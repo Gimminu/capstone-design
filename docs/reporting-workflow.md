@@ -245,3 +245,36 @@ gh issue view <number>
 ```
 
 이 방식의 목적은 개발 중 문서 작성 부담을 줄이되, 나중에 “어떤 문제를 어떤 근거로 개선했는지”를 재구성할 수 있게 만드는 것입니다.
+
+## 12. Evidence ledger 자동화
+
+반복 실험이 많은 Android/extension/backend 작업은 커밋만으로 의미를 파악하기 어렵습니다.
+따라서 의미 있는 실패, 실험, 개선, 회귀, 검증, 의사결정은 `scripts/chungmaru_evidence.py`로 단일 JSONL ledger에 기록합니다.
+
+공식 ledger는 다음 두 파일입니다.
+
+| 파일 | 역할 |
+| --- | --- |
+| `docs/evidence/chungmaru-progress-log.jsonl` | append-only 원본 기록 |
+| `docs/evidence/chungmaru-progress-index.md` | 발표/보고서용 요약 인덱스 |
+
+사용 기준은 다음과 같습니다.
+
+1. raw 실행 JSON을 계속 커밋하지 않습니다. 필요한 경우 compact fixture 또는 curated artifact만 남깁니다.
+2. branch의 작은 실험 커밋은 `backfill-git`으로 추적하되, 최종 보고서에 쓰려면 수동 failure/improvement 항목으로 증거를 보강합니다.
+3. 사용자가 캡처로 보여준 새로운 이상 현상은 먼저 `failure`로 등록하고, 다음 커밋이 그 실패를 줄였는지 별도 `improvement` 또는 `verification`으로 남깁니다.
+4. Android 실시간 마스킹은 기본적으로 `BBA-79`, `C4`, `C5`, `C7`을 함께 확인합니다.
+5. PR 본문과 Linear 코멘트는 `docs/evidence/chungmaru-progress-index.md`의 항목을 기준으로 작성합니다.
+
+기본 명령은 아래와 같습니다.
+
+```bash
+python3 scripts/chungmaru_evidence.py backfill-git \
+  --revision-range origin/main..HEAD \
+  --linear-issue BBA-79 \
+  --github-pr https://github.com/BbangYi/ChungMaru/pull/32 \
+  --session-id 019e3546-cfae-7450-880d-006c2f1102d5 \
+  --write
+
+python3 scripts/chungmaru_evidence.py validate
+```

@@ -331,33 +331,77 @@ class MaskOverlayEventPolicyTest {
     }
 
     @Test
-    fun shouldClearAfterAnalysisFailure_preservesOneFailureForRenderableVisualRetry() {
+    fun shouldClearAfterAnalysisFailure_preservesFallbackMasksUntilNextScreenEvent() {
         assertFalse(
             MaskOverlayEventPolicy.shouldClearAfterAnalysisFailure(
                 hasActiveMasks = true,
                 hasRenderableVisualRois = true,
-                hasPreservedRecentAnalysisFailure = false
+                hasProvisionalMasks = false,
+                visualAnalysisInFlight = false
             )
         )
-        assertTrue(
+        assertFalse(
             MaskOverlayEventPolicy.shouldClearAfterAnalysisFailure(
                 hasActiveMasks = true,
+                hasRenderableVisualRois = false,
+                hasProvisionalMasks = true,
+                visualAnalysisInFlight = false
+            )
+        )
+        assertFalse(
+            MaskOverlayEventPolicy.shouldClearAfterAnalysisFailure(
+                hasActiveMasks = false,
                 hasRenderableVisualRois = true,
-                hasPreservedRecentAnalysisFailure = true
+                hasProvisionalMasks = false,
+                visualAnalysisInFlight = true
             )
         )
         assertTrue(
             MaskOverlayEventPolicy.shouldClearAfterAnalysisFailure(
                 hasActiveMasks = false,
                 hasRenderableVisualRois = true,
-                hasPreservedRecentAnalysisFailure = false
+                hasProvisionalMasks = true,
+                visualAnalysisInFlight = false
             )
         )
         assertTrue(
             MaskOverlayEventPolicy.shouldClearAfterAnalysisFailure(
                 hasActiveMasks = true,
                 hasRenderableVisualRois = false,
-                hasPreservedRecentAnalysisFailure = false
+                hasProvisionalMasks = false,
+                visualAnalysisInFlight = true
+            )
+        )
+    }
+
+    @Test
+    fun shouldDeferVisualInvalidationForContentChange_ignoresImmediateLayoutNoise() {
+        assertTrue(
+            MaskOverlayEventPolicy.shouldDeferVisualInvalidationForContentChange(
+                eventType = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+                visualAnalysisInFlight = true,
+                elapsedSinceVisualAnalysisStartMs = 120L
+            )
+        )
+        assertFalse(
+            MaskOverlayEventPolicy.shouldDeferVisualInvalidationForContentChange(
+                eventType = AccessibilityEvent.TYPE_VIEW_SCROLLED,
+                visualAnalysisInFlight = true,
+                elapsedSinceVisualAnalysisStartMs = 32L
+            )
+        )
+        assertFalse(
+            MaskOverlayEventPolicy.shouldDeferVisualInvalidationForContentChange(
+                eventType = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+                visualAnalysisInFlight = false,
+                elapsedSinceVisualAnalysisStartMs = 32L
+            )
+        )
+        assertFalse(
+            MaskOverlayEventPolicy.shouldDeferVisualInvalidationForContentChange(
+                eventType = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+                visualAnalysisInFlight = true,
+                elapsedSinceVisualAnalysisStartMs = 250L
             )
         )
     }

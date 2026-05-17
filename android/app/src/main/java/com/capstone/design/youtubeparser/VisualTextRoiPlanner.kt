@@ -33,11 +33,17 @@ object VisualTextRoiPlanner {
     private const val TOP_CONTROL_REGION_MAX_PX = 230
     private const val TOP_HERO_MEDIA_MIN_HEIGHT_PX = 180
     private const val TOP_HERO_MEDIA_MIN_WIDTH_RATIO = 0.48f
+    private const val TOP_SHORTS_CARD_MIN_WIDTH_RATIO = 0.34f
+    private const val TOP_SHORTS_CARD_MIN_HEIGHT_PX = 180
     private const val CLIPPED_TOP_COMPOSITE_MAX_HEIGHT_PX = 59
     private const val SHORT_COMPOSITE_EXPAND_MAX_HEIGHT_PX = 260
     private const val SHORT_COMPOSITE_TITLE_GAP_MAX_PX = 180
     private const val SHORT_COMPOSITE_EXPANDED_MAX_HEIGHT_PX = 420
     private const val SHORT_COMPOSITE_TITLE_OVERLAP_RATIO = 0.55f
+    private const val SHORTS_THUMBNAIL_CARD_MIN_WIDTH_RATIO = 0.34f
+    private const val SHORTS_THUMBNAIL_CARD_MAX_WIDTH_RATIO = 0.55f
+    private const val SHORTS_THUMBNAIL_CARD_MIN_HEIGHT_PX = 360
+    private const val SHORTS_THUMBNAIL_HEIGHT_RATIO = 0.82f
 
     fun planFromNodes(
         nodes: List<ParsedTextNode>,
@@ -61,6 +67,7 @@ object VisualTextRoiPlanner {
         }
         val fallbackCandidates =
             buildYoutubeExpandedShortCompositeRois(nodes, screenWidth, screenHeight, rawCandidates) +
+                buildYoutubeShortCardThumbnailRois(rawCandidates, screenWidth, screenHeight) +
                 buildYoutubeClippedTopCompositeRois(nodes, screenWidth, screenHeight, rawCandidates) +
                 buildYoutubeFallbackRois(nodes, screenWidth, screenHeight, rawCandidates)
         val selectableRawCandidates = if (fallbackCandidates.isNotEmpty()) {
@@ -121,7 +128,7 @@ object VisualTextRoiPlanner {
         if (looksLikeRootOrSystemRegion(clamped, screenWidth, screenHeight)) return null
         if (
             looksLikeTopControlRegion(clamped, screenHeight) &&
-            !isTopHeroMediaRegion(isYoutubeComposite, clamped, screenWidth)
+            !isTopVisibleMediaRegion(isYoutubeComposite, clamped, screenWidth)
         ) {
             return null
         }
@@ -206,7 +213,7 @@ object VisualTextRoiPlanner {
         return bounds.top < cutoff
     }
 
-    private fun isTopHeroMediaRegion(
+    private fun isTopVisibleMediaRegion(
         isYoutubeComposite: Boolean,
         bounds: BoundsRect,
         screenWidth: Int
@@ -215,8 +222,12 @@ object VisualTextRoiPlanner {
 
         val width = bounds.right - bounds.left
         val height = bounds.bottom - bounds.top
-        return height >= TOP_HERO_MEDIA_MIN_HEIGHT_PX &&
+        val isHero = height >= TOP_HERO_MEDIA_MIN_HEIGHT_PX &&
             width >= (screenWidth * TOP_HERO_MEDIA_MIN_WIDTH_RATIO).toInt()
+        val isShortsGridCard = height >= TOP_SHORTS_CARD_MIN_HEIGHT_PX &&
+            width >= (screenWidth * TOP_SHORTS_CARD_MIN_WIDTH_RATIO).toInt()
+
+        return isHero || isShortsGridCard
     }
 
     private fun normalizeRoiBounds(
@@ -439,6 +450,59 @@ object VisualTextRoiPlanner {
                     source = candidate.source,
                     priority = -1,
                     reason = "expanded-short-composite-title",
+                    sourceText = candidate.sourceText
+                )
+            }
+            .toList()
+    }
+
+    private fun buildYoutubeShortCardThumbnailRois(
+        rawCandidates: List<VisualTextRoi>,
+        screenWidth: Int,
+        screenHeight: Int
+    ): List<VisualTextRoi> {
+        return rawCandidates
+            .asSequence()
+            .filter { candidate ->
+                candidate.source == "youtube-composite-card" &&
+                    candidate.sourceText.lowercase().contains("play short")
+            }
+            .mapNotNull { candidate ->
+                val bounds = candidate.boundsInScreen
+                val width = bounds.right - bounds.left
+                val height = bounds.bottom - bounds.top
+                val widthRatio = width.toFloat() / screenWidth.toFloat()
+
+                if (
+                    widthRatio < SHORTS_THUMBNAIL_CARD_MIN_WIDTH_RATIO ||
+                    widthRatio > SHORTS_THUMBNAIL_CARD_MAX_WIDTH_RATIO ||
+                    height < SHORTS_THUMBNAIL_CARD_MIN_HEIGHT_PX
+                ) {
+                    return@mapNotNull null
+                }
+
+                val thumbnailBottom = min(
+                    screenHeight,
+                    bounds.top + (height * SHORTS_THUMBNAIL_HEIGHT_RATIO).toInt()
+                )
+                if (thumbnailBottom - bounds.top < MIN_HEIGHT_PX) return@mapNotNull null
+
+                val roiBounds = padAndClamp(
+                    BoundsRect(
+                        left = bounds.left,
+                        top = bounds.top,
+                        right = bounds.right,
+                        bottom = thumbnailBottom
+                    ),
+                    screenWidth,
+                    screenHeight
+                ) ?: return@mapNotNull null
+
+                VisualTextRoi(
+                    boundsInScreen = roiBounds,
+                    source = candidate.source,
+                    priority = -2,
+                    reason = "short-card-thumbnail-segment",
                     sourceText = candidate.sourceText
                 )
             }

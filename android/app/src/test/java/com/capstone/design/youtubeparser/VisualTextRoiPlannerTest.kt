@@ -344,6 +344,30 @@ class VisualTextRoiPlannerTest {
     }
 
     @Test
+    fun planFromNodes_keepsTopShortsCardAndCropsThumbnailSegment() {
+        val rois = VisualTextRoiPlanner.planFromNodes(
+            nodes = listOf(
+                contentDescriptionNode(
+                    displayText = "Tlqkf 공부법, 2.1 million views, 미미미누, 10 months ago - play Short",
+                    left = 32,
+                    top = 189,
+                    right = 529,
+                    bottom = 941
+                )
+            ),
+            screenWidth = 1080,
+            screenHeight = 2400
+        )
+
+        assertEquals(1, rois.size)
+        assertEquals("youtube-composite-card", rois.single().source)
+        assertEquals("short-card-thumbnail-segment", rois.single().reason)
+        assertTrue(rois.single().boundsInScreen.top <= 189)
+        assertTrue(rois.single().boundsInScreen.bottom < 880)
+        assertTrue(rois.single().boundsInScreen.bottom > 760)
+    }
+
+    @Test
     fun planFromNodes_keepsFallbackBandWhenOnlyGenericYoutubeRoisExist() {
         val rois = VisualTextRoiPlanner.planFromNodes(
             nodes = listOf(

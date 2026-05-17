@@ -193,6 +193,89 @@ class YoutubeAnalysisTargetExtractorTest {
     }
 
     @Test
+    fun extractTargets_estimatesCompactShortsGridTitleInsideThumbnailBand() {
+        val targets = YoutubeAnalysisTargetExtractor.extractTargets(
+            listOf(
+                contentDescriptionNode(
+                    "Tlqkf 공부법, 2.1 million views, 미미미누, 10 months ago - play Short",
+                    32,
+                    189,
+                    529,
+                    556
+                )
+            )
+        )
+
+        val primaryTarget = targets.primaryTargets().single()
+        assertEquals("Tlqkf 공부법", primaryTarget.commentText)
+        assertEquals("android-accessibility:youtube_shorts_title", primaryTarget.authorId)
+        assertTrue(primaryTarget.boundsInScreen.top in 350..370)
+    }
+
+    @Test
+    fun extractTargets_estimatesMediumShortsGridTitleNearTopOverlayBand() {
+        val targets = YoutubeAnalysisTargetExtractor.extractTargets(
+            listOf(
+                contentDescriptionNode(
+                    "tlqkf비용 효과 있을까?, 89 thousand views, 1분만, 1 year ago - play Short",
+                    551,
+                    1571,
+                    1048,
+                    2211
+                )
+            )
+        )
+
+        val primaryTarget = targets.primaryTargets().single()
+        assertEquals("tlqkf비용 효과 있을까?", primaryTarget.commentText)
+        assertEquals("android-accessibility:youtube_shorts_title", primaryTarget.authorId)
+        assertTrue(primaryTarget.boundsInScreen.top in 1705..1720)
+    }
+
+    @Test
+    fun extractTargets_estimatesShortsGridTitleWhenCandidateIsNotAtTitlePrefix() {
+        val targets = YoutubeAnalysisTargetExtractor.extractTargets(
+            listOf(
+                contentDescriptionNode(
+                    "No, I promised you Tlqkf.., 2.4 million views, 빅토리, 1 year ago - play Short",
+                    17,
+                    1139,
+                    526,
+                    1928
+                )
+            )
+        )
+
+        val primaryTarget = targets.primaryTargets().single()
+        assertEquals("No, I promised you Tlqkf..", primaryTarget.commentText)
+        assertEquals("android-accessibility:youtube_shorts_title", primaryTarget.authorId)
+        assertTrue(primaryTarget.boundsInScreen.top in 1655..1675)
+        assertTrue(targets.visualRangeTargets().isEmpty())
+    }
+
+    @Test
+    fun extractTargets_usesPlaylistDescriptionAsStableVisibleTitle() {
+        val targets = YoutubeAnalysisTargetExtractor.extractTargets(
+            listOf(
+                contentDescriptionNode(
+                    "Playlist - tlqkf 존나 개 빡칠때 듣는 노래들 - 전보때 - 6 videos",
+                    0,
+                    1187,
+                    1080,
+                    1920
+                )
+            )
+        )
+
+        val primaryTarget = targets.primaryTargets().single()
+        assertEquals("tlqkf 존나 개 빡칠때 듣는 노래들", primaryTarget.commentText)
+        assertEquals("android-accessibility:youtube_title", primaryTarget.authorId)
+        assertTrue(primaryTarget.boundsInScreen.left in 145..155)
+        assertTrue(primaryTarget.boundsInScreen.top in 1815..1825)
+        assertTrue(targets.visualRangeTargets().isEmpty())
+    }
+
+    @Test
     fun extractTargets_keepsRomanizedQwertyTitleAsPrimaryAccessibilityTarget() {
         val targets = YoutubeAnalysisTargetExtractor.extractTargets(
             listOf(

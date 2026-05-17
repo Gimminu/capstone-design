@@ -352,7 +352,7 @@ class ScreenTextCandidateExtractorTest {
         val comment = candidates.single { it.rawText == "tlqkf 뭐냐 진짜" }
 
         assertEquals(CandidateRole.CONTENT, comment.role)
-        assertEquals("android-accessibility-comment:youtube", comment.backendSourceId)
+        assertEquals("android-accessibility-comment:youtube:sampleuser", comment.backendSourceId)
         assertEquals(CandidateSurface.YOUTUBE_COMMENT, comment.route.surface)
         assertEquals(CandidateGeometryPolicy.ACCESSIBILITY_EXACT, comment.route.geometryPolicy)
         assertEquals(CandidateRenderPolicy.DIRECT_OVERLAY, comment.route.renderPolicy)
@@ -426,6 +426,41 @@ class ScreenTextCandidateExtractorTest {
     }
 
     @Test
+    fun extractCandidates_addsExactCharacterRangeCandidateWhenAccessibilityProvidesCharBoxes() {
+        val text = "🔥\"Tlqkf 또 보여줘야 돼!\" : 식케이"
+        val candidates = ScreenTextCandidateExtractor.extractCandidates(
+            packageName = YOUTUBE_PACKAGE,
+            nodes = listOf(
+                node(
+                    text = text,
+                    left = 80,
+                    top = 520,
+                    right = 720,
+                    bottom = 590,
+                    packageName = YOUTUBE_PACKAGE,
+                    charBoxes = charBoxesFor(
+                        text = text,
+                        startLeft = 80,
+                        top = 520,
+                        charWidth = 24,
+                        height = 38
+                    )
+                )
+            )
+        )
+
+        val exactRange = candidates.single {
+            it.backendSourceId.orEmpty().startsWith("android-accessibility-char-range:")
+        }
+
+        assertEquals("tlqkf", exactRange.rawText)
+        assertEquals(CandidateGeometryPolicy.ACCESSIBILITY_EXACT, exactRange.route.geometryPolicy)
+        assertEquals(CandidateRenderPolicy.DIRECT_OVERLAY, exactRange.route.renderPolicy)
+        assertTrue(exactRange.screenRect.left in 118..140)
+        assertTrue(exactRange.screenRect.right in 250..280)
+    }
+
+    @Test
     fun extractCandidates_routesCompositeYoutubeTextAsOcrRequired() {
         val candidates = ScreenTextCandidateExtractor.extractCandidates(
             packageName = YOUTUBE_PACKAGE,
@@ -487,7 +522,8 @@ class ScreenTextCandidateExtractorTest {
         bottom: Int,
         className: String = "android.widget.TextView",
         packageName: String = CHROME_PACKAGE,
-        isVisibleToUser: Boolean = true
+        isVisibleToUser: Boolean = true,
+        charBoxes: List<CharBox> = emptyList()
     ): ParsedTextNode {
         return ParsedTextNode(
             packageName = packageName,
@@ -501,8 +537,41 @@ class ScreenTextCandidateExtractorTest {
             right = right,
             bottom = bottom,
             approxTop = top,
-            isVisibleToUser = isVisibleToUser
+            isVisibleToUser = isVisibleToUser,
+            charBoxes = charBoxes
         )
+    }
+
+    private fun charBoxesFor(
+        text: String,
+        startLeft: Int,
+        top: Int,
+        charWidth: Int,
+        height: Int
+    ): List<CharBox> {
+        val boxes = mutableListOf<CharBox>()
+        var charIndex = 0
+        var codePointIndex = 0
+        var left = startLeft
+        while (charIndex < text.length) {
+            val codePoint = Character.codePointAt(text, charIndex)
+            val value = String(Character.toChars(codePoint))
+            boxes += CharBox(
+                start = codePointIndex,
+                end = codePointIndex + 1,
+                boundsInScreen = BoundsRect(
+                    left = left,
+                    top = top,
+                    right = left + charWidth,
+                    bottom = top + height
+                ),
+                text = value
+            )
+            charIndex += Character.charCount(codePoint)
+            codePointIndex += 1
+            left += charWidth
+        }
+        return boxes
     }
 
     private fun contentDescriptionNode(

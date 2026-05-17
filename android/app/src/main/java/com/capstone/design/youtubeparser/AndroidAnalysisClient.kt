@@ -28,7 +28,7 @@ object AndroidAnalysisClient {
     private const val TAG = "AndroidAnalysisClient"
     private const val CONNECT_TIMEOUT_MS = 500
     private const val READ_TIMEOUT_MS = 1200
-    private const val RESPONSE_CACHE_LIMIT = 256
+    private const val RESPONSE_CACHE_LIMIT = 512
     private const val RESPONSE_CACHE_TTL_MS = 30_000L
     private const val ACCESSIBILITY_LOOKAHEAD_PREFIX = "android-accessibility-lookahead:"
 
@@ -340,19 +340,19 @@ object AndroidAnalysisClient {
     }
 
     private fun getCachedResult(comment: ParsedComment, now: Long, sensitivity: Int): AndroidAnalysisResultItem? {
-        val key = cacheKey(comment, sensitivity)
-        if (key.isBlank()) return null
-
         return synchronized(responseCache) {
-            val cached = responseCache[key] ?: return@synchronized null
-            if (cached.expiresAt <= now) {
-                responseCache.remove(key)
-                return@synchronized null
+            for (key in cacheKeysForComment(comment, sensitivity)) {
+                val cached = responseCache[key] ?: continue
+                if (cached.expiresAt <= now) {
+                    responseCache.remove(key)
+                    continue
+                }
+                return@synchronized cached.result.copy(
+                    boundsInScreen = comment.boundsInScreen,
+                    authorId = comment.authorId
+                )
             }
-            cached.result.copy(
-                boundsInScreen = comment.boundsInScreen,
-                authorId = comment.authorId
-            )
+            null
         }
     }
 
@@ -370,8 +370,7 @@ object AndroidAnalysisClient {
             requestEntries.forEachIndexed { index, entry ->
                 val result = matchedFreshResults.getOrNull(index) ?: return@forEachIndexed
                 val comment = entry.comment
-                val key = cacheKey(comment, sensitivity)
-                if (key.isNotBlank()) {
+                cacheKeysForComment(comment, sensitivity).forEach { key ->
                     responseCache[key] = CachedAnalysisResult(
                         result.copy(
                             original = comment.commentText,
@@ -416,6 +415,19 @@ object AndroidAnalysisClient {
         )
     }
 
+    internal fun cacheKeysForComment(comment: ParsedComment, sensitivity: Int? = null): List<String> {
+        val exactKey = cacheKey(comment, sensitivity)
+        val textOnlyKey = if (shouldUseTextOnlyCacheAlias(comment)) {
+            cacheKey(comment.commentText, sensitivity)
+        } else {
+            ""
+        }
+
+        return listOf(exactKey, textOnlyKey)
+            .filter { it.isNotBlank() }
+            .distinct()
+    }
+
     private fun cacheKey(text: String, sensitivity: Int? = null): String {
         return cacheKey(text = text, sensitivity = sensitivity, sourceKey = "")
     }
@@ -439,6 +451,25 @@ object AndroidAnalysisClient {
         val value = authorId?.trim().orEmpty()
         if (value.isBlank()) return ""
         return value.removePrefix(ACCESSIBILITY_LOOKAHEAD_PREFIX)
+    }
+
+    private fun shouldUseTextOnlyCacheAlias(comment: ParsedComment): Boolean {
+        val normalizedText = comment.commentText.replace(Regex("\\s+"), " ").trim()
+        if (normalizedText.length < 2) return false
+
+        val sourceKey = normalizeSourceCacheKey(comment.authorId)
+        if (sourceKey.isBlank()) return false
+
+        return sourceKey == "android-accessibility:youtube_user_input" ||
+            sourceKey == "android-accessibility:youtube_title" ||
+            sourceKey == "android-accessibility:youtube_shorts_title" ||
+            sourceKey == "youtube-composite-description" ||
+            sourceKey.startsWith("android-accessibility-comment:youtube") ||
+            sourceKey.startsWith("android-accessibility-char-range:") ||
+            sourceKey.startsWith("youtube-visual-range:") ||
+            sourceKey.startsWith("ocr:youtube-composite-card:") ||
+            sourceKey.startsWith("ocr:youtube-visible-band:") ||
+            sourceKey.startsWith("ocr:youtube-semantic-card:")
     }
 
     internal fun parseAndroidAnalysisResponse(

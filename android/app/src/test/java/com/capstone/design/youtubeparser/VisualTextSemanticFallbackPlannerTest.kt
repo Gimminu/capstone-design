@@ -147,6 +147,25 @@ class VisualTextSemanticFallbackPlannerTest {
     }
 
     @Test
+    fun selectCandidates_doesNotAddCenteredFallbackForPlaylistCards() {
+        val roi = VisualTextRoi(
+            boundsInScreen = BoundsRect(0, 605, 1080, 1289),
+            source = "youtube-composite-card",
+            priority = 0,
+            reason = "content-description-only",
+            sourceText = "Playlist - tlqkf 존나 개 빡칠때 듣는 노래들 - 전보때 - 6 videos"
+        )
+
+        val candidates = VisualTextSemanticFallbackPlanner.selectCandidates(
+            visualRoiPlan = VisualTextRoiPlan(rois = listOf(roi), candidateCount = 1),
+            screenWidth = 1080,
+            screenHeight = 2400
+        )
+
+        assertTrue(candidates.isEmpty())
+    }
+
+    @Test
     fun selectCandidates_doesNotInventVisibleBandHeroMasksFromSearchInputOnly() {
         val roi = VisualTextRoi(
             boundsInScreen = BoundsRect(0, 321, 1080, 945),
