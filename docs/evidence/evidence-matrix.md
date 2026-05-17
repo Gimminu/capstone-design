@@ -2,8 +2,8 @@
 
 Updated: 2026-05-17
 
-이 문서는 캡스톤 심사 대응 To-do-list를 repo evidence, Notion 운영판, GitHub/Linear 이력과 연결하기 위한 추적 문서입니다.
-`docs/evidence/chungmaru-progress-log.jsonl`은 공식 원본이고, Notion `Bugs & Issues`는 사람이 보기 좋은 운영판입니다.
+이 문서는 캡스톤 심사 대응 To-do-list를 repo evidence, Notion Evidence Hub, GitHub/Linear 이력과 연결하기 위한 추적 문서입니다.
+`docs/evidence/chungmaru-progress-log.jsonl`은 공식 내부 ledger이고, Notion `Bugs & Issues`는 보고서 추출을 위한 evidence hub입니다.
 
 ## 운영 원칙
 
@@ -14,7 +14,7 @@ Updated: 2026-05-17
 | Worktree는 격리 장치 | 계속 진행되는 개발 세션은 worktree에서 격리하고, 공식 evidence는 ledger/Notion에 남김 |
 | 세션 출처 분리 | `source_session_id`는 실제 개발/오류 세션, `registrar_session_id`는 정리 세션 또는 자동화 |
 | 보고서 사용 가능성 분리 | `evidence_quality=commit-only`는 추적용, `report-ready`만 최종 보고서에 바로 사용 |
-| Notion은 운영판 | 모든 ledger row를 복제하지 않고, 심사 대응 대표 문제와 report-ready 후보만 카드로 유지 |
+| Notion은 evidence hub | 상위 DB에는 토픽 Hub만 두고, 실제 사례/metric/screenshot/trace는 Hub 내부 child DB row로 유지 |
 
 ## History Policy
 
@@ -22,41 +22,43 @@ Updated: 2026-05-17
 | --- | --- | --- |
 | Repo ledger | 의미 있는 실패, 실험, 개선, 회귀, 검증, 의사결정 전체 | 삭제하지 않고 append-only로 유지 |
 | Evidence docs | 최종 보고서에 옮길 수 있는 표, 전후 비교, 스냅샷, screenshot pack | report-ready 또는 artifact-backed 기준으로 선별 |
-| Notion board | 심사 대응 항목, 현재 주요 blocker, 다음 수집 대상 | 카드 수를 늘리기보다 기존 카드의 상태/설명을 갱신 |
+| Notion Hub | 심사 대응 토픽, report-ready 후보, 현재 gap, 다음 수집 대상 | 상위 카드를 늘리지 않고 Hub 내부 child DB row를 갱신 |
 | Git history | 최종 PR/merge에서 읽히는 의미 단위 | 작은 실험 커밋은 branch/worktree 안에서 허용하고 main은 얕게 유지 |
 
-Notion의 기존 Chungmaru evidence 카드는 일단 남깁니다.
-다만 같은 목적을 가진 중복 카드가 생기면 새 카드를 만들지 않고 기존 카드를 갱신합니다.
-매번 개발 세션 결과를 정리할 때는 전체 이력을 Notion에 모두 복제하지 않고, 아래 기준으로 3-5개 대표 문제만 board 상단에서 관리합니다.
+기존 Chungmaru evidence 상세 카드는 삭제하지 않고 관련 Hub 아래로 흡수합니다.
+같은 목적의 증거가 추가되면 새 상위 카드를 만들지 않고 Hub 내부 child DB row를 갱신합니다.
+매번 개발 세션 결과를 정리할 때는 전체 이력을 Notion에 모두 복제하지 않고, report-ready 후보와 open gap만 Hub에 반영합니다.
 
 ## 2026-05-14 Review Focus
 
-| 우선순위 | Focus | 왜 먼저인가 | 대표 Notion 카드 |
+| 우선순위 | Focus | 왜 먼저인가 | 대표 Notion Hub |
 | --- | --- | --- | --- |
-| P0 | 통합 흐름 E2E 증거 | 완성도 평가에서 실제 서비스 흐름을 보여주는 핵심 근거 | Chrome/Android E2E demo 흐름 예시, 현재 Demo 가능 기능과 어려운 기능 구분 |
-| P0 | Android `boundsInScreen` + final mask pack | Android는 DOM이 없으므로 좌표 기반 마스킹 난이도를 보여주는 기술성 핵심 근거 | Android boundsInScreen 활용 증거 pack |
-| P1 | 재학습 전/후 + FP/FN + score bucket | 모델이 실제로 개선됐는지와 threshold로 해결 가능한지 판단하는 핵심 근거 | Model retrain before/after, Model FP/FN 대표 사례와 score bucket |
-| P1 | clean-topic bias + span/masking trace | `차별금지법`, `성소수자` 토픽 오탐과 실제 마스킹 단어 선택 문제를 같이 설명 | Clean-topic bias 테스트 세트, Span detection 성능 및 masking trace |
-| P1 | parser raw/cleaned + 플랫폼별 오류 | 수집/정제 품질이 모델 입력 품질과 직결됨을 보여주는 기술성 근거 | Parser raw JSONL vs cleaned JSONL, 플랫폼별 parser/extractor 오류 분리 |
-| P2 | worktree/ledger/commit 운영 | 개발 과정 추적성과 발표 자료 재사용성을 높이는 운영 근거 | Meaningful commit / shallow history policy, Chungmaru evidence ledger 운영 원칙 |
+| P0 | 통합 흐름 E2E 증거 | 완성도 평가에서 실제 서비스 흐름을 보여주는 핵심 근거 | `Chrome / Android E2E Demo Hub`, `Demo Capability Matrix Hub` |
+| P0 | Android `boundsInScreen` + final mask pack | Android는 DOM이 없으므로 좌표 기반 마스킹 난이도를 보여주는 기술성 핵심 근거 | `Android boundsInScreen Masking Hub` |
+| P1 | 재학습 전/후 + FP/FN + score bucket | 모델이 실제로 개선됐는지와 threshold로 해결 가능한지 판단하는 핵심 근거 | `Model Evaluation Hub`, `Model Error Cases Hub` |
+| P1 | clean-topic bias + span/masking trace | `차별금지법`, `성소수자` 토픽 오탐과 실제 마스킹 단어 선택 문제를 같이 설명 | `Clean-topic Bias Hub`, `Span & Masking Trace Hub` |
+| P1 | parser raw/cleaned + 플랫폼별 오류 | 수집/정제 품질이 모델 입력 품질과 직결됨을 보여주는 기술성 근거 | `Parser / Extractor Hub`, `Platform Parser Issues Hub` |
+| P2 | worktree/ledger/commit 운영 | 개발 과정 추적성과 발표 자료 재사용성을 높이는 운영 근거 | `Evidence / Git / Worktree Policy Hub` |
 
 정리 우선순위는 `P0 완성도 증거 -> P1 기술성 증거 -> P2 운영 증거`입니다.
 운영/자동화 자체가 발표의 중심이 되지 않도록 하고, 모델/파서/통합 흐름 증거가 먼저 채워지게 관리합니다.
 
-## Notion Board
+## Notion Evidence Hub
 
-| Notion card | 목적 |
-| --- | --- |
-| [Model retrain before/after 성능 비교표](https://www.notion.so/22b0cc24fc2e834585f60111712dce57) | 재학습 전후 성능과 유형별 지표 정리 |
-| [Model FP/FN 대표 사례와 score bucket 분석](https://www.notion.so/27f0cc24fc2e82d3993f0142e2b40d38) | 대표 오류와 threshold 한계 정리 |
-| [Clean-topic bias 테스트 세트 정리](https://www.notion.so/fd60cc24fc2e838e86098133bfb7202f) | 민감 토픽 clean 문장 오탐 점검 |
-| [Span detection 성능 및 masking trace 표](https://www.notion.so/3900cc24fc2e8369b8b10168ba48574b) | score, span, 최종 마스킹 연결 예시 |
-| [Parser raw JSONL vs cleaned JSONL 비교](https://www.notion.so/85d0cc24fc2e82beb7b681984e7b483f) | 원본/정제 JSONL 전후 비교 |
-| [UI 텍스트 제거 규칙 및 before/after 예시](https://www.notion.so/b640cc24fc2e82ceb4e9018825c39d98) | UI 잡음 제거 규칙 설명 |
-| [플랫폼별 parser/extractor 오류 분리](https://www.notion.so/1c50cc24fc2e83e7b9f00162ec293df8) | Instagram/TikTok/YouTube 오류 분리 |
-| [Android boundsInScreen 활용 증거 pack](https://www.notion.so/3ee0cc24fc2e82e09d5d81b93ef02fa6) | Android 좌표와 overlay 증거 묶음 |
-| [Chrome/Android E2E demo 흐름 예시](https://www.notion.so/6c50cc24fc2e8343a0eb01cae916c0d0) | 플랫폼별 end-to-end 예시 |
-| [현재 Demo 가능 기능과 어려운 기능 구분](https://www.notion.so/2730cc24fc2e8289a43901f181366b9f) | 발표 범위와 향후 과제 분리 |
+`Bugs & Issues` 상위 DB에는 아래 Hub 카드만 유지합니다. 실제 evidence는 Hub 페이지 내부 child DB row로 누적하고, 기존 상세 카드는 삭제하지 않고 관련 Hub 아래로 흡수합니다.
+
+| Hub | Child DB | 목적 |
+| --- | --- | --- |
+| [Model Evaluation Hub](https://www.notion.so/3630cc24fc2e81508039f27db86c82f7) | `Model Evaluation Runs`, `Model Comparison Summary` | 재학습 전후 성능과 유형별 지표 정리 |
+| [Model Error Cases Hub](https://www.notion.so/3630cc24fc2e81419f41cbdb6bd06440) | `Model Error Cases`, `Score Bucket Analysis` | 대표 FP/FN과 threshold 한계 정리 |
+| [Clean-topic Bias Hub](https://www.notion.so/3630cc24fc2e811c8637d308ca2b054e) | `Clean Topic Tests` | 민감 토픽 clean 문장 오탐 점검 |
+| [Span & Masking Trace Hub](https://www.notion.so/3630cc24fc2e81ffae46eb0a8dbfed30) | `Masking Trace Examples` | score, span, 최종 마스킹 연결 예시 |
+| [Parser / Extractor Hub](https://www.notion.so/3630cc24fc2e8161826ff7b47bf9fc05) | `Raw Cleaned Snapshots`, `UI Removal Rules` | 원본/정제 JSONL 전후 비교와 UI 잡음 제거 규칙 |
+| [Platform Parser Issues Hub](https://www.notion.so/3630cc24fc2e81c5aed6cfac9ffc7898) | `Platform Parser Issues` | Instagram/TikTok/YouTube/Chrome 오류 분리 |
+| [Android boundsInScreen Masking Hub](https://www.notion.so/3630cc24fc2e8119a711fdeff96f58ad) | `Android Bounds Masking Packs` | Android 좌표, backend score/span, overlay screenshot 증거 묶음 |
+| [Chrome / Android E2E Demo Hub](https://www.notion.so/3630cc24fc2e8172a55af79e1f61900e) | `E2E Demo Traces` | 플랫폼별 end-to-end 예시 |
+| [Demo Capability Matrix Hub](https://www.notion.so/3630cc24fc2e81dcbd26cd95c741fa66) | `Demo Capability Matrix` | 발표 범위와 향후 과제 분리 |
+| [Evidence / Git / Worktree Policy Hub](https://www.notion.so/3630cc24fc2e81089677e3da966b2fcb) | `Evidence Decisions`, `Worktree / Branch Records` | Git/evidence/worktree 운영 정책 |
 
 ## Repo Evidence Artifacts
 
