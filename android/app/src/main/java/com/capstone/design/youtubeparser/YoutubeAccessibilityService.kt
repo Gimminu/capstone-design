@@ -2412,9 +2412,18 @@ class YoutubeAccessibilityService : AccessibilityService() {
         displayText: String
     ): List<CharBox> {
         val rawText = text ?: return emptyList()
-        if (rawText != displayText) return emptyList()
         if (rawText.isBlank() || rawText.length > MAX_CHARACTER_LOCATION_TEXT_LENGTH) return emptyList()
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return emptyList()
+        if (
+            !AccessibilityCharacterBoxPolicy.shouldRequest(
+                rawText = rawText,
+                displayText = displayText,
+                className = node.className?.toString(),
+                viewIdResourceName = node.viewIdResourceName
+            )
+        ) {
+            return emptyList()
+        }
 
         val extraData = try {
             node.availableExtraData
