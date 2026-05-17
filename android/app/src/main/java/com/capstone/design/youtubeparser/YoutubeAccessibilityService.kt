@@ -236,6 +236,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
                     val scrollTranslation = translateMaskOverlayForScroll(event)
                     if (scrollTranslation.translated) {
                         markOverlayRevisionStale()
+                        promoteCachedMasksForCurrentWindow()
                     } else if (
                         MaskOverlayEventPolicy.shouldHideOnUnresolvedScrollDelta(
                             eventType = event.eventType,
@@ -253,7 +254,6 @@ class YoutubeAccessibilityService : AccessibilityService() {
                     } else {
                         markOverlayRevisionStale()
                     }
-                    promoteCachedMasksForCurrentWindow()
                 } else if (overlaySelfContentChange) {
                     Log.d(TAG, "ignore overlay self content change")
                 } else if (
@@ -1144,15 +1144,18 @@ class YoutubeAccessibilityService : AccessibilityService() {
         if (nodes.isEmpty()) return
 
         val metrics = resources.displayMetrics
-        val comments = ScreenTextCandidateExtractor.extractCandidates(
+        val stableCandidates = ScreenTextCandidateExtractor.extractCandidates(
             packageName = currentPackage,
             nodes = nodes,
             sceneRevision = visualSceneRevision,
             screenWidth = metrics.widthPixels,
             screenHeight = metrics.heightPixels
-        ).map { candidate ->
-            candidate.toParsedComment()
+        ).filter { candidate ->
+            canPromoteCachedMaskCandidate(candidate)
         }
+        if (stableCandidates.isEmpty()) return
+
+        val comments = stableCandidates.map { candidate -> candidate.toParsedComment() }
         if (comments.isEmpty()) return
 
         val snapshot = ParseSnapshot(
@@ -1167,7 +1170,7 @@ class YoutubeAccessibilityService : AccessibilityService() {
         Log.d(
             TAG,
             "promote cached masks during scroll comments=${analysis.commentCount} " +
-                "offensive=${analysis.offensiveCount}"
+                "offensive=${analysis.offensiveCount} stableCandidates=${stableCandidates.size}"
         )
         updateMaskOverlay(
             currentPackage = currentPackage,
@@ -1177,6 +1180,19 @@ class YoutubeAccessibilityService : AccessibilityService() {
             allowDuringScrollStabilization = true,
             preserveExistingPreciseVisualMasks = true
         )
+    }
+
+    private fun canPromoteCachedMaskCandidate(candidate: ScreenTextCandidate): Boolean {
+        if (candidate.route.renderPolicy != CandidateRenderPolicy.DIRECT_OVERLAY) return false
+
+        return when (candidate.route.geometryPolicy) {
+            CandidateGeometryPolicy.ACCESSIBILITY_EXACT,
+            CandidateGeometryPolicy.VISUAL_OCR_EXACT -> true
+            CandidateGeometryPolicy.ACCESSIBILITY_ESTIMATED,
+            CandidateGeometryPolicy.ACCESSIBILITY_LOOKAHEAD,
+            CandidateGeometryPolicy.VISUAL_FALLBACK,
+            CandidateGeometryPolicy.ANALYSIS_ONLY -> false
+        }
     }
 
     private fun rememberAbsoluteScrollPosition(event: AccessibilityEvent) {
