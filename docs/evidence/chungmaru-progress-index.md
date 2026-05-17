@@ -1,6 +1,6 @@
 # Chungmaru Evidence Index
 
-Generated: 2026-05-17T09:42:54Z
+Generated: 2026-05-17T09:51:17Z
 Source log: `docs/evidence/chungmaru-progress-log.jsonl`
 
 This file is generated from the JSONL ledger. Edit the ledger through `scripts/chungmaru_evidence.py`.
@@ -9,32 +9,34 @@ This file is generated from the JSONL ledger. Edit the ledger through `scripts/c
 
 | Metric | Count |
 | --- | ---: |
-| Total entries | 11 |
+| Total entries | 12 |
 
 ### Event type
 
 | Value | Count |
 | --- | ---: |
 | failure | 1 |
-| improvement | 10 |
+| improvement | 11 |
 
 ### Lane
 
 | Value | Count |
 | --- | ---: |
-| android | 11 |
+| android | 12 |
 
 ### Outcome
 
 | Value | Count |
 | --- | ---: |
 | committed | 10 |
+| improved | 1 |
 | observed | 1 |
 
 ## Recent Evidence
 
 | Date | Type | Lane | Title | Constraints | Outcome | Evidence / Risk |
 | --- | --- | --- | --- | --- | --- | --- |
+| 2026-05-17 | improvement | android | Clear untranslatable masks during YouTube scroll recapture gaps | C4, C5, C7, C8 | improved | Scroll translation could return ALL_OFFSCREEN, NO_TRANSLATABLE_MASKS, or REJECTED_DELTA without removing the existing overlay views, leaving stale masks visibl... |
 | 2026-05-17 | failure | android | YouTube scroll and mini-player leave stale masks on wrong regions | C4, C5, C7 | observed | User screenshot shows masks remaining on profile/channel metadata and thumbnail regions while visible harmful text can still remain after scrolling; the mini-p... |
 | 2026-05-17 | improvement | android | `8fd464c` Keep visual OCR alive during content churn | C4, C5, C7 | committed | Backfilled from branch commit history; expand this entry if it becomes report-critical. / Backfilled entry needs screenshot/log/test evidence before it is used... |
 | 2026-05-17 | improvement | android | `cd22bea` Tighten Android realtime visual masking | C4, C5, C7 | committed | Backfilled from branch commit history; expand this entry if it becomes report-critical. / Backfilled entry needs screenshot/log/test evidence before it is used... |

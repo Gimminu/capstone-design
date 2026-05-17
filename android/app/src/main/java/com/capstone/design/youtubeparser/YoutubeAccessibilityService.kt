@@ -231,12 +231,12 @@ class YoutubeAccessibilityService : AccessibilityService() {
                             hasResolvedScrollDelta = scrollTranslation.hasResolvedScrollDelta
                         )
                     ) {
-                        Log.d(TAG, "preserve mask overlay until scroll recapture: unresolved delta")
-                        markOverlayRevisionStale()
+                        Log.d(TAG, "hide mask overlay until scroll recapture: unresolved delta")
+                        clearMaskOverlay()
                         scheduleDeferredFollowUpParse()
                     } else if (scrollTranslation.shouldHideUntilRecapture && hasActiveMasks) {
-                        Log.d(TAG, "preserve mask overlay until scroll recapture status=${scrollTranslation.status}")
-                        markOverlayRevisionStale()
+                        Log.d(TAG, "hide mask overlay until scroll recapture status=${scrollTranslation.status}")
+                        clearMaskOverlay()
                         scheduleDeferredFollowUpParse(waitForScrollStabilization = true)
                     } else {
                         markOverlayRevisionStale()

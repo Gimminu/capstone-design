@@ -1729,6 +1729,7 @@ class MaskOverlayController(
         val translatedSpecs = translationPlan.specs
 
         if (translatedSpecs.isEmpty()) {
+            clear()
             return translationPlan.status
         }
 
